@@ -1,5 +1,7 @@
 # curlonaut.nvim
 
+![curlonaut](assets/curlonaut-1.png)
+
 A rest client for NVIM.
 
 Uses .rest / .http files and curl to send the requests.

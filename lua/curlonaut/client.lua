@@ -9,23 +9,32 @@ local Job = require 'plenary.job'
 ---@field response_headers table<string, string>
 ---@field stderr string
 
----Send an HTTP request using curl.
 ---@class SimpleRestFormField
 ---@field name string
 ---@field value string|nil
 ---@field file string|nil
 ---@field type string|nil
 
+---Escape a string for safe use in a POSIX shell command.
+---Wraps the string in single quotes and escapes embedded single quotes.
+---@param s string
+---@return string
+local function shell_escape(s)
+  return "'" .. s:gsub("'", "'\\''") .. "'"
+end
+
+---Build the curl argument list for a request.
+---Returns a shallow copy of headers so the original table is never mutated.
 ---@param url string
 ---@param method? string defaults to "GET"
 ---@param headers? table<string, string>
 ---@param body? string
 ---@param form_fields? SimpleRestFormField[]
----@param on_chunk? fun(line: string)
----@param on_stderr_chunk? fun(line: string)
----@param on_done? fun(result: SimpleRestResponse)
-M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_chunk, on_done)
+---@param include_status_writer? boolean defaults to true; set to false for display/copy
+---@return string[]
+function M.build_args(url, method, headers, body, form_fields, include_status_writer)
   method = method or 'GET'
+  include_status_writer = include_status_writer ~= false
 
   local args = {
     '-v', -- verbose
@@ -33,26 +42,35 @@ M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_c
     '-X',
     method,
     url,
-    '-w',
-    '\n%{http_code}', -- write HTTP code at the end
   }
+
+  if include_status_writer then
+    table.insert(args, '-w')
+    table.insert(args, '\n%{http_code}') -- write HTTP code at the end
+  end
+
+  -- Work on a shallow copy so we don't mutate the caller's headers table.
+  local headers_copy = {}
+  if headers then
+    for k, v in pairs(headers) do
+      headers_copy[k] = v
+    end
+  end
 
   -- When using -F, curl auto-generates Content-Type with the proper boundary.
   -- Passing a manual multipart/form-data header without a boundary breaks parsing.
   if form_fields and #form_fields > 0 then
-    for key, _ in pairs(headers or {}) do
+    for key, _ in pairs(headers_copy) do
       if key:lower() == 'content-type' then
-        headers[key] = nil
+        headers_copy[key] = nil
         break
       end
     end
   end
 
-  if headers then
-    for key, value in pairs(headers) do
-      table.insert(args, '-H')
-      table.insert(args, key .. ': ' .. value)
-    end
+  for key, value in pairs(headers_copy) do
+    table.insert(args, '-H')
+    table.insert(args, key .. ': ' .. value)
   end
 
   if form_fields and #form_fields > 0 then
@@ -73,6 +91,52 @@ M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_c
     table.insert(args, '-d')
     table.insert(args, body)
   end
+
+  return args
+end
+
+---Return true if the argument needs single-quoting for POSIX shell.
+---Safe unquoted characters: alphanumerics, dot, underscore, hyphen, slash,
+---colon, percent, equals, at, plus, and comma.
+---@param s string
+---@return boolean
+local function needs_quoting(s)
+  return s:find('[^%w._%%=,:@+/-]') ~= nil
+end
+
+---Build a shell-safe curl command as a list of lines formatted for copy-paste
+---into bash. Each argument is placed on its own line with a trailing backslash
+---so the command can be pasted directly into a terminal.
+---@param url string
+---@param method? string
+---@param headers? table<string, string>
+---@param body? string
+---@param form_fields? SimpleRestFormField[]
+---@return string[]
+function M.build_command_lines(url, method, headers, body, form_fields)
+  local args = M.build_args(url, method, headers, body, form_fields, false)
+  local lines = { 'curl \\' }
+  for i, arg in ipairs(args) do
+    local formatted = needs_quoting(arg) and shell_escape(arg) or arg
+    if i < #args then
+      formatted = formatted .. ' \\'
+    end
+    table.insert(lines, '  ' .. formatted)
+  end
+  return lines
+end
+
+---Send an HTTP request using curl.
+---@param url string
+---@param method? string defaults to "GET"
+---@param headers? table<string, string>
+---@param body? string
+---@param form_fields? SimpleRestFormField[]
+---@param on_chunk? fun(line: string)
+---@param on_stderr_chunk? fun(line: string)
+---@param on_done? fun(result: SimpleRestResponse)
+M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_chunk, on_done)
+  local args = M.build_args(url, method, headers, body, form_fields)
 
   local stdout_lines = {}
   local stderr_lines = {}

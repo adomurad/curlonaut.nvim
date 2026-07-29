@@ -3,7 +3,8 @@ local M = {}
 local SIMPLE_BUF_NAME = 'curlonaut://simple'
 local FULL_BUF_NAME = 'curlonaut://full'
 local VERBOSE_BUF_NAME = 'curlonaut://verbose'
-local TABS = { 'simple', 'full', 'verbose' }
+local CURL_BUF_NAME = 'curlonaut://curl'
+local TABS = { 'simple', 'full', 'verbose', 'curl' }
 
 ---@type string
 local active_tab = 'simple'
@@ -15,6 +16,8 @@ local function buf_name_for_tab(tab_name)
     return FULL_BUF_NAME
   elseif tab_name == 'verbose' then
     return VERBOSE_BUF_NAME
+  elseif tab_name == 'curl' then
+    return CURL_BUF_NAME
   end
   return SIMPLE_BUF_NAME
 end
@@ -30,7 +33,8 @@ local function get_or_create_buf(tab_name)
     vim.api.nvim_set_option_value('buftype', 'nofile', { buf = buf })
     vim.api.nvim_set_option_value('bufhidden', 'hide', { buf = buf })
     vim.api.nvim_set_option_value('swapfile', false, { buf = buf })
-    vim.api.nvim_set_option_value('filetype', 'curlonaut', { buf = buf })
+    local ft = tab_name == 'curl' and 'sh' or 'curlonaut'
+    vim.api.nvim_set_option_value('filetype', ft, { buf = buf })
 
     -- Buffer-local keymaps for tab switching
     vim.api.nvim_buf_set_keymap(buf, 'n', '<S-l>', '', {
@@ -186,7 +190,7 @@ local function normalize_lines(lines)
   local result = {}
   for _, line in ipairs(lines) do
     if line:find '\n' then
-      for split_line in line:gmatch '([^\n]*)' do
+      for _, split_line in ipairs(vim.split(line, '\n', { plain = true })) do
         table.insert(result, split_line)
       end
     else
@@ -230,7 +234,7 @@ function M.highlight_tab(tab_name, content_type)
   local highlighter = require 'curlonaut.highlighter'
   if tab_name == 'verbose' then
     highlighter.highlight_verbose_buffer(buf)
-  else
+  elseif tab_name ~= 'curl' then
     highlighter.highlight_buffer(buf)
   end
 end

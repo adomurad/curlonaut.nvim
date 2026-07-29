@@ -27,7 +27,7 @@ This is a simple project - mainly suited to solve my needs.
       pattern = { 'http', 'rest' },
       callback = function(args)
         vim.keymap.set('n', '<CR>', function()
-          vim.cmd 'Curlonaut RunRequestUnderCursor'
+          vim.cmd 'Curlonaut RunRequest'
         end, { buffer = args.buf, desc = 'Run REST request under cursor' })
       end,
     })
@@ -42,7 +42,10 @@ This is a simple project - mainly suited to solve my needs.
 | `:Curlonaut Open` | Open the results panel |
 | `:Curlonaut Close` | Close the results panel |
 | `:Curlonaut Toggle` | Toggle the results panel |
-| `:Curlonaut RunRequestUnderCursor` | Execute the request at cursor |
+| `:Curlonaut RunRequest` | Execute the request under cursor |
+| `:Curlonaut CopyCurl` | Copy the shell-escaped curl command under cursor to clipboard (does not run) |
+
+The results panel has four tabs: **Simple** (response only), **Full** (request + response), **Verbose** (live curl stderr), and **Curl** (the exact shell-safe curl command used, ready to copy and paste into a terminal).
 
 ## .http File Format
 

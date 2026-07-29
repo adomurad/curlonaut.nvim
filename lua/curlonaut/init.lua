@@ -25,7 +25,7 @@ M.config = {
   formatters = {},
 }
 
-local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequestUnderCursor' }
+local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequest', 'CopyCurl' }
 
 ---@param arg_lead string
 ---@param cmd_line string
@@ -44,7 +44,7 @@ end
 local function create_user_commands()
   vim.api.nvim_create_user_command('Curlonaut', function(args)
     if args.args == '' then
-      print 'Error: Curlonaut requires an argument (Open, Close, Toggle, RunRequestUnderCursor)'
+      print 'Error: Curlonaut requires an argument (Open, Close, Toggle, RunRequest, CopyCurl)'
       return
     end
 
@@ -54,8 +54,10 @@ local function create_user_commands()
       M.close_results()
     elseif args.args == 'Toggle' then
       M.toggle_results()
-    elseif args.args == 'RunRequestUnderCursor' then
-      M.run_request_under_cursor()
+    elseif args.args == 'RunRequest' then
+      M.run_request()
+    elseif args.args == 'CopyCurl' then
+      M.copy_curl()
     else
       print 'Error: wrong arg!'
     end
@@ -113,22 +115,21 @@ local function extract_json_path(obj, path)
   return current
 end
 
-function M.run_request_under_cursor()
+---Parse the request under the cursor and apply variable substitution.
+---Returns the processed parsed request, or nil if parsing fails.
+---@return SimpleRestParsedRequest|nil
+local function prepare_request()
   local req = core.get_request_at_cursor()
   if not req then
     vim.notify('No request found under cursor', vim.log.levels.WARN)
-    return
+    return nil
   end
 
   local bufnr = vim.api.nvim_get_current_buf()
-  local start_row, start_col, end_row, end_col = req:range()
-
-  core.flash_request(bufnr, start_row, start_col, end_row, end_col)
-
   local parsed = parser.parse_request(req, bufnr)
   if not parsed then
     vim.notify('Failed to parse request', vim.log.levels.ERROR)
-    return
+    return nil
   end
 
   -- Load env and substitute variables in URL, headers, body, and form fields
@@ -151,6 +152,29 @@ function M.run_request_under_cursor()
     end
   end
 
+  return parsed
+end
+
+function M.run_request()
+  local parsed = prepare_request()
+  if not parsed then
+    return
+  end
+
+  local req = core.get_request_at_cursor()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local start_row, start_col, end_row, end_col = req:range()
+  core.flash_request(bufnr, start_row, start_col, end_row, end_col)
+
+  -- Build curl command lines for the Curl tab
+  local curl_lines = client.build_command_lines(
+    parsed.url,
+    parsed.method,
+    parsed.headers,
+    parsed.body,
+    parsed.form_fields
+  )
+
   -- Open results window if closed; if already open, stay on current tab
   if not window.is_open() then
     window.open 'simple'
@@ -158,6 +182,7 @@ function M.run_request_under_cursor()
   window.clear_tab 'simple'
   window.clear_tab 'full'
   window.clear_tab 'verbose'
+  window.clear_tab 'curl'
 
   -- Simple tab: placeholder until request completes
   window.set_tab_lines('simple', {
@@ -169,6 +194,9 @@ function M.run_request_under_cursor()
 
   -- Verbose tab: header only (content streams in live)
   window.set_tab_lines('verbose', { '# Verbose Output', '' })
+
+  -- Curl tab: ready-to-copy command
+  window.set_tab_lines('curl', curl_lines)
 
   notifier.start('Running ' .. parsed.method .. ' ' .. parsed.url)
 
@@ -320,6 +348,37 @@ function M.run_request_under_cursor()
       end)
     end
   )
+end
+
+function M.copy_curl()
+  local parsed = prepare_request()
+  if not parsed then
+    return
+  end
+
+  local curl_lines = client.build_command_lines(
+    parsed.url,
+    parsed.method,
+    parsed.headers,
+    parsed.body,
+    parsed.form_fields
+  )
+  local curl_cmd = table.concat(curl_lines, '\n')
+
+  -- Try to copy to the system clipboard; fall back to primary, then unnamed.
+  local copied = false
+  for _, reg in ipairs { '+', '*', '"' } do
+    local ok = pcall(vim.fn.setreg, reg, curl_cmd)
+    if ok then
+      copied = true
+    end
+  end
+
+  if copied then
+    vim.notify('[curlonaut] Copied curl command to clipboard', vim.log.levels.INFO)
+  else
+    vim.notify('[curlonaut] Failed to copy curl command', vim.log.levels.ERROR)
+  end
 end
 
 return M

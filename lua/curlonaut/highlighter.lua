@@ -1,6 +1,6 @@
 local M = {}
 
-local hl_ns = vim.api.nvim_create_namespace 'simple_rest_highlight'
+local hl_ns = vim.api.nvim_create_namespace 'curlonaut_highlight'
 
 ---@param status integer
 ---@return string
@@ -75,7 +75,7 @@ function M.highlight_buffer(bufnr)
   end
 
   -- Apply treesitter-based syntax highlighting to the body region
-  local content_type = vim.b[bufnr].simple_rest_content_type
+  local content_type = vim.b[bufnr].curlonaut_content_type
   local lang = content_type_to_lang(content_type)
   if not lang then
     return

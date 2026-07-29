@@ -1,8 +1,8 @@
 local M = {}
 
-local SIMPLE_BUF_NAME = 'simple_rest://simple'
-local FULL_BUF_NAME = 'simple_rest://full'
-local VERBOSE_BUF_NAME = 'simple_rest://verbose'
+local SIMPLE_BUF_NAME = 'curlonaut://simple'
+local FULL_BUF_NAME = 'curlonaut://full'
+local VERBOSE_BUF_NAME = 'curlonaut://verbose'
 local TABS = { 'simple', 'full', 'verbose' }
 
 ---@type string
@@ -30,7 +30,7 @@ local function get_or_create_buf(tab_name)
     vim.api.nvim_set_option_value('buftype', 'nofile', { buf = buf })
     vim.api.nvim_set_option_value('bufhidden', 'hide', { buf = buf })
     vim.api.nvim_set_option_value('swapfile', false, { buf = buf })
-    vim.api.nvim_set_option_value('filetype', 'simple_rest', { buf = buf })
+    vim.api.nvim_set_option_value('filetype', 'curlonaut', { buf = buf })
 
     -- Buffer-local keymaps for tab switching
     vim.api.nvim_buf_set_keymap(buf, 'n', '<S-l>', '', {
@@ -56,7 +56,7 @@ local function get_results_win()
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     local buf = vim.api.nvim_win_get_buf(win)
     local name = vim.api.nvim_buf_get_name(buf)
-    if name:match('simple_rest://%w+$') then
+    if name:match('curlonaut://%w+$') then
       return win
     end
   end
@@ -225,9 +225,9 @@ end
 function M.highlight_tab(tab_name, content_type)
   local buf = get_or_create_buf(tab_name)
   if content_type then
-    vim.b[buf].simple_rest_content_type = content_type
+    vim.b[buf].curlonaut_content_type = content_type
   end
-  local highlighter = require 'simple_rest.highlighter'
+  local highlighter = require 'curlonaut.highlighter'
   if tab_name == 'verbose' then
     highlighter.highlight_verbose_buffer(buf)
   else

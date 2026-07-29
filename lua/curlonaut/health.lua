@@ -23,9 +23,9 @@ end
 
 return {
   check = function()
-    vim.health.start 'simple_rest.nvim'
+    vim.health.start 'curlonaut.nvim'
 
-    vim.health.info [[A simple REST client for Neovim]]
+    vim.health.info [[A curl-based REST client for Neovim]]
 
     check_external_reqs()
     check_treesitter_parser()

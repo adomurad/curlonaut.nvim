@@ -1,6 +1,6 @@
 local M = {}
 
-local flash_ns = vim.api.nvim_create_namespace 'simple_rest_flash'
+local flash_ns = vim.api.nvim_create_namespace 'curlonaut_flash'
 
 ---@param bufnr? integer
 ---@return TSNode|nil

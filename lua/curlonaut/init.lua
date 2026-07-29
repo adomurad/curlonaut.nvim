@@ -1,19 +1,19 @@
 local M = {}
 
-local window = require 'simple_rest.window'
-local notifier = require 'simple_rest.notifier'
-local core = require 'simple_rest.core'
-local parser = require 'simple_rest.parser'
-local client = require 'simple_rest.client'
-local formatter = require 'simple_rest.formatter'
-local env = require 'simple_rest.env'
+local window = require 'curlonaut.window'
+local notifier = require 'curlonaut.notifier'
+local core = require 'curlonaut.core'
+local parser = require 'curlonaut.parser'
+local client = require 'curlonaut.client'
+local formatter = require 'curlonaut.formatter'
+local env = require 'curlonaut.env'
 
 --[[
   Config example:
-    require('simple_rest').setup({
+    require('curlonaut').setup({
       formatters = {
-        json = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/simple_rest_response.json' } },
-        html = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/simple_rest_response.html' } },
+        json = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/curlonaut_response.json' } },
+        html = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/curlonaut_response.html' } },
         xml  = { command = 'xmllint',   args = { '--format', '-' } },
       },
     })
@@ -42,9 +42,9 @@ local function complete_my_cmd(arg_lead, cmd_line, cursor_pos)
 end
 
 local function create_user_commands()
-  vim.api.nvim_create_user_command('SimpleRest', function(args)
+  vim.api.nvim_create_user_command('Curlonaut', function(args)
     if args.args == '' then
-      print 'Error: SimpleRest requires an argument (Open, Close, Toggle, RunRequestUnderCursor)'
+      print 'Error: Curlonaut requires an argument (Open, Close, Toggle, RunRequestUnderCursor)'
       return
     end
 
@@ -60,7 +60,7 @@ local function create_user_commands()
       print 'Error: wrong arg!'
     end
   end, {
-    desc = 'Simple Rest',
+    desc = 'Curlonaut',
     nargs = 1,
     complete = complete_my_cmd,
   })

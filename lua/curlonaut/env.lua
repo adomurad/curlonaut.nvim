@@ -29,7 +29,7 @@ function M.load_dotenv(path)
   local f = io.open(path, 'r')
   if not f then
     vim.schedule(function()
-      vim.notify('[simple_rest] Could not read env file: ' .. path, vim.log.levels.WARN)
+      vim.notify('[curlonaut] Could not read env file: ' .. path, vim.log.levels.WARN)
     end)
     return env
   end
@@ -121,7 +121,7 @@ function M.substitute(text, env_table)
     if val == nil then
       vim.schedule(function()
         vim.notify(
-          '[simple_rest] Missing env variable: ' .. var,
+          '[curlonaut] Missing env variable: ' .. var,
           vim.log.levels.WARN
         )
       end)

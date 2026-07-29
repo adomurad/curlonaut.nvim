@@ -10,6 +10,9 @@ local Job = require 'plenary.job'
 ---@field stderr string
 ---@field time_ms integer
 
+local active_job = nil
+local is_cancelled = false
+
 ---@class SimpleRestFormField
 ---@field name string
 ---@field value string|nil
@@ -148,12 +151,13 @@ end
 M.send = function(url, method, headers, body, form_fields, curl_flags, on_chunk, on_stderr_chunk, on_done)
   local args = M.build_args(url, method, headers, body, form_fields, true, curl_flags)
 
+  is_cancelled = false
   local stdout_lines = {}
   local stderr_lines = {}
   local request_headers = {}
   local response_headers = {}
 
-  Job:new({
+  active_job = Job:new({
     command = 'curl',
     args = args,
     on_stdout = function(_, line)
@@ -195,6 +199,15 @@ M.send = function(url, method, headers, body, form_fields, curl_flags, on_chunk,
       end
     end,
     on_exit = function(_, code)
+      active_job = nil
+
+      if is_cancelled then
+        if on_done then
+          on_done(nil)
+        end
+        return
+      end
+
       local http_code = ''
       local time_ms = 0
       local clean_stdout = {}
@@ -228,7 +241,26 @@ M.send = function(url, method, headers, body, form_fields, curl_flags, on_chunk,
         }
       end
     end,
-  }):start()
+  })
+  active_job:start()
+end
+
+---Cancel the currently running curl request, if any.
+---@return boolean cancelled true if a request was active and killed.
+function M.cancel()
+  if active_job then
+    is_cancelled = true
+    -- Send SIGKILL via libuv process handle
+    local uv = vim.uv or vim.loop
+    if active_job.handle then
+      pcall(function()
+        uv.process_kill(active_job.handle, 9)
+      end)
+    end
+    active_job = nil
+    return true
+  end
+  return false
 end
 
 return M

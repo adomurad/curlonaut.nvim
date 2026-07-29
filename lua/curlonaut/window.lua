@@ -51,6 +51,14 @@ local function get_or_create_buf(tab_name)
         M.switch_tab('prev')
       end,
     })
+    -- Cancel running request from results panel
+    vim.api.nvim_buf_set_keymap(buf, 'n', '<C-c>', '', {
+      noremap = true,
+      silent = true,
+      callback = function()
+        require('curlonaut').cancel_request()
+      end,
+    })
   end
   return buf
 end

@@ -26,7 +26,7 @@ M.config = {
   formatters = {},
 }
 
-local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequest', 'CopyCurl' }
+local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequest', 'CopyCurl', 'CancelRequest' }
 
 ---@param arg_lead string
 ---@param cmd_line string
@@ -59,6 +59,8 @@ local function create_user_commands()
       M.run_request()
     elseif args.args == 'CopyCurl' then
       M.copy_curl()
+    elseif args.args == 'CancelRequest' then
+      M.cancel_request()
     else
       print 'Error: wrong arg!'
     end
@@ -88,6 +90,17 @@ end
 
 function M.toggle_results()
   window.toggle()
+end
+
+function M.cancel_request()
+  if client.cancel() then
+    notifier.stop('Request cancelled')
+    window.set_tab_lines('simple', { '# Request cancelled', '' })
+    window.set_tab_lines('full', { '# Request cancelled', '' })
+    vim.notify('[curlonaut] Request cancelled', vim.log.levels.INFO)
+  else
+    vim.notify('[curlonaut] No active request to cancel', vim.log.levels.WARN)
+  end
 end
 
 function M.goto_next_request()
@@ -187,6 +200,11 @@ function M.run_request()
     return
   end
 
+  -- Cancel any previous request before starting a new one
+  if client.cancel() then
+    notifier.stop('Previous request cancelled')
+  end
+
   local bufnr = vim.api.nvim_get_current_buf()
 
   if not validate_multipart_files(parsed, bufnr) then
@@ -264,6 +282,12 @@ function M.run_request()
     end,
     function(result)
       vim.schedule(function()
+        if not result then
+          -- Cancelled — UI already updated by cancel_request(), just stop highlighting
+          window.highlight_tab 'verbose'
+          return
+        end
+
         notifier.stop('Done! Status: ' .. result.status .. ' | ' .. result.time_ms .. 'ms')
 
         extractors.evaluate(parsed, result, env.session_vars)

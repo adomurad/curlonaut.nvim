@@ -32,6 +32,10 @@ It is mostly ***vibed*** - use at your own discretion.
           vim.cmd 'Curlonaut RunRequest'
         end, { buffer = args.buf, desc = 'Run REST request under cursor' })
 
+        vim.keymap.set('n', '<C-c>', function()
+          vim.cmd 'Curlonaut CancelRequest'
+        end, { buffer = args.buf, desc = 'Cancel running curlonaut request' })
+
         vim.keymap.set('n', ']r', require('curlonaut').goto_next_request,
           { buffer = args.buf, desc = 'Next REST request' })
         vim.keymap.set('n', '[r', require('curlonaut').goto_prev_request,
@@ -50,6 +54,7 @@ It is mostly ***vibed*** - use at your own discretion.
 | `:Curlonaut Close` | Close the results panel |
 | `:Curlonaut Toggle` | Toggle the results panel |
 | `:Curlonaut RunRequest` | Execute the request under cursor |
+| `:Curlonaut CancelRequest` | Kill the currently running request (also `<C-c>` in `.http` / results buffers) |
 | `:Curlonaut CopyCurl` | Copy the shell-escaped curl command under cursor to clipboard (does not run) |
 
 The results panel has four tabs: **Simple** (response only), **Full** (request + response), **Verbose** (live curl stderr), and **Curl** (the exact shell-safe curl command used, ready to copy and paste into a terminal).

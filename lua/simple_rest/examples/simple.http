@@ -1,0 +1,13 @@
+### Request 1
+
+GET https://google.com/
+X-Custom-Header: test
+X-Custom-Header2: test
+
+{
+  "body": 5 
+}
+
+### Request 2
+
+GET https://google.com/test

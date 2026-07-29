@@ -105,7 +105,7 @@ function M.run_request_under_cursor()
     return
   end
 
-  -- Load env and substitute variables in URL, headers, and body
+  -- Load env and substitute variables in URL, headers, body, and form fields
   local env_table = env.build_env_table(bufnr)
   parsed.url = env.substitute(parsed.url, env_table)
   for key, value in pairs(parsed.headers) do
@@ -113,6 +113,16 @@ function M.run_request_under_cursor()
   end
   if parsed.body then
     parsed.body = env.substitute(parsed.body, env_table)
+  end
+  if parsed.form_fields then
+    for _, field in ipairs(parsed.form_fields) do
+      if field.value then
+        field.value = env.substitute(field.value, env_table)
+      end
+      if field.file then
+        field.file = env.substitute(field.file, env_table)
+      end
+    end
   end
 
   -- Open results window if closed; if already open, stay on current tab
@@ -141,6 +151,7 @@ function M.run_request_under_cursor()
     parsed.method,
     parsed.headers,
     parsed.body,
+    parsed.form_fields,
     nil, -- on_stdout_chunk (we collect body at the end)
     function(line)
       -- on_stderr_chunk - stream verbose output live to Verbose tab

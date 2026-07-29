@@ -1,0 +1,61 @@
+@baseUrl = http://localhost:3000/api
+
+### JSON response body
+
+GET {{baseUrl}}/json
+
+### HTML response body
+
+GET {{baseUrl}}/html
+
+### XMN response body
+
+GET {{baseUrl}}/xml
+
+### application/json request body
+
+POST {{baseUrl}}/accept-json
+Content-Type: application/json
+
+{
+  "messageInBody": "message from body",
+  "aNumber": 12345,
+  "bool": true
+}
+
+### www-urlencoded request body
+
+POST {{baseUrl}}/accept-urlencoded
+Content-Type: application/x-www-form-urlencoded
+
+username=jo
+
+hn&password=secret&age=30
+
+### www-urlencoded request body - strip new lines
+
+POST {{baseUrl}}/accept-urlencoded
+Content-Type: application/x-www-form-urlencoded
+
+username=john
+&password=secret
+&age=30
+
+### multipart request body
+
+POST {{baseUrl}}/accept-multipart
+Content-Type: multipart/form-data
+
+username=john
+password=secret
+file=< ./lua/curlonaut/examples/simple.http
+
+### multipart request body - with custom type
+
+POST {{baseUrl}}/accept-multipart
+Content-Type: multipart/form-data
+
+username=john
+password=secret
+file=< ./lua/curlonaut/examples/simple.http;type=application/pdf
+

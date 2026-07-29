@@ -10,14 +10,21 @@ local Job = require 'plenary.job'
 ---@field stderr string
 
 ---Send an HTTP request using curl.
+---@class SimpleRestFormField
+---@field name string
+---@field value string|nil
+---@field file string|nil
+---@field type string|nil
+
 ---@param url string
 ---@param method? string defaults to "GET"
 ---@param headers? table<string, string>
 ---@param body? string
+---@param form_fields? SimpleRestFormField[]
 ---@param on_chunk? fun(line: string)
 ---@param on_stderr_chunk? fun(line: string)
 ---@param on_done? fun(result: SimpleRestResponse)
-M.send = function(url, method, headers, body, on_chunk, on_stderr_chunk, on_done)
+M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_chunk, on_done)
   method = method or 'GET'
 
   local args = {
@@ -30,6 +37,17 @@ M.send = function(url, method, headers, body, on_chunk, on_stderr_chunk, on_done
     '\n%{http_code}', -- write HTTP code at the end
   }
 
+  -- When using -F, curl auto-generates Content-Type with the proper boundary.
+  -- Passing a manual multipart/form-data header without a boundary breaks parsing.
+  if form_fields and #form_fields > 0 then
+    for key, _ in pairs(headers or {}) do
+      if key:lower() == 'content-type' then
+        headers[key] = nil
+        break
+      end
+    end
+  end
+
   if headers then
     for key, value in pairs(headers) do
       table.insert(args, '-H')
@@ -37,7 +55,21 @@ M.send = function(url, method, headers, body, on_chunk, on_stderr_chunk, on_done
     end
   end
 
-  if body and body ~= '' then
+  if form_fields and #form_fields > 0 then
+    for _, field in ipairs(form_fields) do
+      if field.file then
+        local form_arg = field.name .. '=@' .. field.file
+        if field.type then
+          form_arg = form_arg .. ';type=' .. field.type
+        end
+        table.insert(args, '-F')
+        table.insert(args, form_arg)
+      else
+        table.insert(args, '-F')
+        table.insert(args, field.name .. '=' .. field.value)
+      end
+    end
+  elseif body and body ~= '' then
     table.insert(args, '-d')
     table.insert(args, body)
   end

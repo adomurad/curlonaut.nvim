@@ -77,11 +77,59 @@ function M.parse_request(request_node, bufnr)
     end
   end
 
+  -- Normalize www-form-urlencoded bodies: strip newlines before '&' and all
+  -- trailing newlines.
+  if body then
+    for key, value in pairs(headers) do
+      if key:lower() == 'content-type'
+        and value:lower():find('application/x-www-form-urlencoded', 1, true) then
+        body = body:gsub('\r?\n&', '&')
+        body = body:gsub('[\r\n]+$', '')
+        break
+      end
+    end
+  end
+
+  -- Parse multipart/form-data body into structured form fields.
+  local form_fields = nil
+  if body then
+    for key, value in pairs(headers) do
+      if key:lower() == 'content-type'
+        and value:lower():find('multipart/form-data', 1, true) then
+        form_fields = {}
+        for line in body:gmatch('[^\r\n]+') do
+          local name, val = line:match('^([^=]+)=(.*)$')
+          if name then
+            name = vim.trim(name)
+            val = vim.trim(val)
+            if val:match('^<') then
+              -- File upload: < ./path or < ./path;type=mime/type
+              local file_path = val:sub(2):match('^%s*(.*)$')
+              local mime_type
+              local semi_pos = file_path:find(';')
+              if semi_pos then
+                local rest = file_path:sub(semi_pos + 1)
+                mime_type = rest:match('^%s*type%s*=%s*(.+)$') or rest
+                file_path = vim.trim(file_path:sub(1, semi_pos - 1))
+              end
+              table.insert(form_fields, { name = name, file = file_path, type = mime_type })
+            else
+              table.insert(form_fields, { name = name, value = val })
+            end
+          end
+        end
+        body = nil
+        break
+      end
+    end
+  end
+
   return {
     method = method,
     url = url,
     headers = headers,
     body = body,
+    form_fields = form_fields,
   }
 end
 

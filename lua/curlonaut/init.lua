@@ -90,6 +90,14 @@ function M.toggle_results()
   window.toggle()
 end
 
+function M.goto_next_request()
+  core.goto_request(0, 'next', vim.v.count1)
+end
+
+function M.goto_prev_request()
+  core.goto_request(0, 'prev', vim.v.count1)
+end
+
 ---Parse the request under the cursor and apply variable substitution.
 ---Returns the processed parsed request, or nil if parsing fails.
 ---@return SimpleRestParsedRequest|nil

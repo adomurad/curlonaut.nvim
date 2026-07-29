@@ -29,6 +29,11 @@ This is a simple project - mainly suited to solve my needs.
         vim.keymap.set('n', '<CR>', function()
           vim.cmd 'Curlonaut RunRequest'
         end, { buffer = args.buf, desc = 'Run REST request under cursor' })
+
+        vim.keymap.set('n', ']r', require('curlonaut').goto_next_request,
+          { buffer = args.buf, desc = 'Next REST request' })
+        vim.keymap.set('n', '[r', require('curlonaut').goto_prev_request,
+          { buffer = args.buf, desc = 'Previous REST request' })
       end,
     })
   end,

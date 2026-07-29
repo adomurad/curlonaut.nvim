@@ -8,6 +8,7 @@ local Job = require 'plenary.job'
 ---@field request_headers table<string, string>
 ---@field response_headers table<string, string>
 ---@field stderr string
+---@field time_ms integer
 
 ---@class SimpleRestFormField
 ---@field name string
@@ -46,7 +47,7 @@ function M.build_args(url, method, headers, body, form_fields, include_status_wr
 
   if include_status_writer then
     table.insert(args, '-w')
-    table.insert(args, '\n%{http_code}') -- write HTTP code at the end
+    table.insert(args, '\n__CURLONAUT_STATUS__:%{http_code}\n__CURLONAUT_TIME__:%{time_total}')
   end
 
   -- Work on a shallow copy so we don't mutate the caller's headers table.
@@ -185,8 +186,21 @@ M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_c
       end
     end,
     on_exit = function(_, code)
-      local http_code = stdout_lines[#stdout_lines] or ''
-      stdout_lines[#stdout_lines] = nil
+      local http_code = ''
+      local time_ms = 0
+      local clean_stdout = {}
+
+      for _, line in ipairs(stdout_lines) do
+        local status_match = line:match('^__CURLONAUT_STATUS__:(%d+)$')
+        local time_match = line:match('^__CURLONAUT_TIME__:([%d%.]+)$')
+        if status_match then
+          http_code = status_match
+        elseif time_match then
+          time_ms = math.floor(tonumber(time_match) * 1000 + 0.5)
+        else
+          table.insert(clean_stdout, line)
+        end
+      end
 
       if code ~= 0 then
         vim.schedule(function()
@@ -197,10 +211,11 @@ M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_c
       if on_done then
         on_done {
           status = tonumber(http_code) or 0,
-          body = table.concat(stdout_lines, '\n'),
+          body = table.concat(clean_stdout, '\n'),
           request_headers = request_headers,
           response_headers = response_headers,
           stderr = table.concat(stderr_lines, '\n'),
+          time_ms = time_ms,
         }
       end
     end,

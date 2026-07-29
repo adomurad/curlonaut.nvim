@@ -192,6 +192,22 @@ function M.run_request()
     '...',
   })
 
+  -- Full tab: placeholder with request info upfront
+  local full_placeholder = {
+    '# Request',
+    parsed.method .. ' ' .. parsed.url,
+    '',
+  }
+  if next(parsed.headers) then
+    table.insert(full_placeholder, '## Headers')
+    for name, value in pairs(parsed.headers) do
+      table.insert(full_placeholder, name .. ': ' .. value)
+    end
+    table.insert(full_placeholder, '')
+  end
+  table.insert(full_placeholder, '...')
+  window.set_tab_lines('full', full_placeholder)
+
   -- Verbose tab: header only (content streams in live)
   window.set_tab_lines('verbose', { '# Verbose Output', '' })
 
@@ -215,7 +231,7 @@ function M.run_request()
     end,
     function(result)
       vim.schedule(function()
-        notifier.stop('Done! Status: ' .. result.status)
+        notifier.stop('Done! Status: ' .. result.status .. ' | ' .. result.time_ms .. 'ms')
 
         -- Evaluate response extractors and store in session vars
         if parsed.response_extractors and #parsed.response_extractors > 0 then
@@ -298,6 +314,7 @@ function M.run_request()
         table.insert(full_lines, '')
         table.insert(full_lines, '# Response')
         table.insert(full_lines, 'Status: ' .. result.status)
+        table.insert(full_lines, 'Time: ' .. result.time_ms .. 'ms')
         table.insert(full_lines, '')
 
         table.insert(full_lines, '## Headers')
@@ -324,6 +341,7 @@ function M.run_request()
           '',
           '# Response',
           'Status: ' .. result.status,
+          'Time: ' .. result.time_ms .. 'ms',
           '',
         }
 

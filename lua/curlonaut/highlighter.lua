@@ -55,6 +55,12 @@ function M.highlight_buffer(bufnr)
       local hl_group = status_hl_group(tonumber(line:sub(code_start)) or 0)
       vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, code_start - 1, { end_col = line_len, hl_group = hl_group })
 
+    -- Time: XXXms → color the value
+    elseif line:match '^Time: ' then
+      local time_start = line:find ': ' + 2
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = time_start - 1, hl_group = 'Function' })
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, time_start - 1, { end_col = line_len, hl_group = 'DiagnosticInfo' })
+
     -- GET / POST / PUT / PATCH / DELETE → Keyword for method, Underlined for URL
     elseif line:match '^%u+ http' then
       local space_pos = line:find ' '

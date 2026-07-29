@@ -91,13 +91,37 @@ report=< ./report.pdf;type=application/pdf
 
 Use `< ./path` for file uploads. Append `;type=mime/type` to override the MIME type.
 
+### Response extractors
+
+After a request completes you can pull values from the response body or headers and save them as session-scoped variables for later requests.
+
+```http
+POST {{base_url}}/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "secret"
+}
+
+@ACCESS_TOKEN = @response.body.token
+@REQUEST_ID = @response.headers.x-request-id
+
+GET {{base_url}}/users
+Authorization: Bearer {{ACCESS_TOKEN}}
+```
+
+- `@response.body.path` — JSON dot-path, supports arrays like `items[0].id`
+- `@response.headers.name` — case-insensitive header lookup
+
 ## Environment Variables
 
 Variable resolution priority (highest first):
 
-1. Inline `@variable = value` declarations in the `.http` file
-2. Variables from the `.env` file specified via `# @env-file ./path`
-3. Shell environment variables
+1. Response extractors (`@var = @response.body...` set after a request)
+2. Inline `@variable = value` declarations in the `.http` file
+3. Variables from the `.env` file specified via `# @env-file ./path`
+4. Shell environment variables
 
 Use `{{VAR_NAME}}` anywhere in the URL, headers, or body.
 

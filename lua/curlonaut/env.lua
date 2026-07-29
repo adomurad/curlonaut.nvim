@@ -1,5 +1,8 @@
 local M = {}
 
+-- Session-scoped variables populated by response extractors.
+M.session_vars = {}
+
 ---Find the env-file path from buffer contents.
 ---Looks for `# @env-file ./path/to/.env` (with # comment prefix) anywhere before the first request.
 ---@param bufnr integer
@@ -59,6 +62,7 @@ function M.get_shell_env()
 end
 
 ---Scan buffer for inline @variable = value declarations.
+---Lines like @var = @response.body.foo are response extractors, not inline vars.
 ---@param bufnr integer
 ---@return table<string, string>
 function M.get_inline_vars(bufnr)
@@ -67,7 +71,7 @@ function M.get_inline_vars(bufnr)
   for row = 0, line_count - 1 do
     local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ''
     local key, value = line:match '^@([A-Za-z_][A-Za-z0-9_]*)%s*=%s*(.-)%s*$'
-    if key then
+    if key and not value:match('^@response%.') then
       -- Strip optional surrounding quotes
       value = value:gsub('^"(.-)"$', '%1'):gsub("^'(.-)'$", '%1')
       vars[key] = value
@@ -77,7 +81,7 @@ function M.get_inline_vars(bufnr)
 end
 
 ---Build a merged env table for a buffer.
----Priority: inline vars > .env file > shell env.
+---Priority: session vars > inline vars > .env file > shell env.
 ---@param bufnr integer
 ---@return table<string, string>
 function M.build_env_table(bufnr)
@@ -101,9 +105,14 @@ function M.build_env_table(bufnr)
     end
   end
 
-  -- Highest priority: inline @variable declarations in the .http file
+  -- High priority: inline @variable declarations in the .http file
   local inline = M.get_inline_vars(bufnr)
   for k, v in pairs(inline) do
+    env[k] = v
+  end
+
+  -- Highest priority: session vars from response extractors
+  for k, v in pairs(M.session_vars) do
     env[k] = v
   end
 
@@ -111,14 +120,14 @@ function M.build_env_table(bufnr)
 end
 
 ---Replace `{{VAR}}` placeholders in text with values from env_table.
----Warns if a variable is not found and substitutes an empty string.
+---Warns if a variable is not found or empty and substitutes an empty string.
 ---@param text string
 ---@param env_table table<string, string>
 ---@return string
 function M.substitute(text, env_table)
   local result = text:gsub('{{([A-Za-z_][A-Za-z0-9_]*)}}', function(var)
     local val = env_table[var]
-    if val == nil then
+    if val == nil or val == '' then
       vim.schedule(function()
         vim.notify(
           '[curlonaut] Missing env variable: ' .. var,

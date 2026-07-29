@@ -1,0 +1,23 @@
+@baseUrl = http://localhost:3000/api
+
+### Login and extract token
+
+POST {{baseUrl}}/echo
+Content-Type: application/json
+X-Request-ID: this is a request id
+
+{
+  "token": "this is a token"
+}
+
+@ACCESS_TOKEN = @response.body.body.token
+@REQUEST_ID = @response.headers.ETag
+@MISSING = @response.headers.missing_header
+
+### Use extracted token
+
+GET {{baseUrl}}/echo
+Authorization: Bearer {{ACCESS_TOKEN}}
+X-Request-ID: {{REQUEST_ID}}
+X-Missing: {{MISSING}}
+

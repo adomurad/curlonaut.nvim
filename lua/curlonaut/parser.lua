@@ -5,6 +5,8 @@ local M = {}
 ---@field url string
 ---@field headers table<string, string>
 ---@field body string|nil
+---@field form_fields table[]|nil
+---@field response_extractors table[]|nil
 
 ---Extract the first child node of a given type.
 ---@param node TSNode
@@ -124,12 +126,34 @@ function M.parse_request(request_node, bufnr)
     end
   end
 
+  -- Parse response extractors embedded in the body text.
+  -- Treesitter lumps everything after the headers into one body node, so we
+  -- scan the raw body string for lines like @var = @response.body.foo and
+  -- strip them out before sending the body over the wire.
+  local response_extractors = {}
+  if body then
+    local body_lines = {}
+    for line in body:gmatch('[^\r\n]+') do
+      local name, target = line:match('^@([A-Za-z_][A-Za-z0-9_]*)%s*=%s*(@response%.[A-Za-z0-9_.%[%]-]+)%s*$')
+      if name and target then
+        table.insert(response_extractors, { name = name, target = target })
+      else
+        table.insert(body_lines, line)
+      end
+    end
+    body = table.concat(body_lines, '\n')
+    if body == '' then
+      body = nil
+    end
+  end
+
   return {
     method = method,
     url = url,
     headers = headers,
     body = body,
     form_fields = form_fields,
+    response_extractors = response_extractors,
   }
 end
 

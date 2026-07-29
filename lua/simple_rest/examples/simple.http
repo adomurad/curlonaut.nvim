@@ -10,4 +10,8 @@ X-Custom-Header2: test
 
 ### Request 2
 
-GET https://google.com/test
+GET https://google.com/
+
+### Req 3
+
+GET https://dummyjson.com/products/1

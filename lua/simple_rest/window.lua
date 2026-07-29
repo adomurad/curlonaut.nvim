@@ -221,8 +221,12 @@ end
 
 ---Apply syntax highlighting to a tab buffer.
 ---@param tab_name string
-function M.highlight_tab(tab_name)
+---@param content_type? string
+function M.highlight_tab(tab_name, content_type)
   local buf = get_or_create_buf(tab_name)
+  if content_type then
+    vim.b[buf].simple_rest_content_type = content_type
+  end
   local highlighter = require 'simple_rest.highlighter'
   if tab_name == 'verbose' then
     highlighter.highlight_verbose_buffer(buf)

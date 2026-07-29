@@ -14,6 +14,23 @@ local function status_hl_group(status)
   end
 end
 
+---@param content_type string|nil
+---@return string|nil
+local function content_type_to_lang(content_type)
+  if not content_type then
+    return nil
+  end
+  local ct = content_type:lower()
+  if ct:find('application/json') or ct:find('text/json') then
+    return 'json'
+  elseif ct:find('text/html') or ct:find('application/xhtml') then
+    return 'html'
+  elseif ct:find('application/xml') or ct:find('text/xml') then
+    return 'xml'
+  end
+  return nil
+end
+
 ---Apply semantic highlights to a Simple or Full tab buffer.
 ---@param bufnr integer
 function M.highlight_buffer(bufnr)
@@ -54,6 +71,86 @@ function M.highlight_buffer(bufnr)
         vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = colon_pos - 1, hl_group = 'Identifier' })
         vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, colon_pos + 1, { end_col = line_len, hl_group = 'String' })
       end
+    end
+  end
+
+  -- Apply treesitter-based syntax highlighting to the body region
+  local content_type = vim.b[bufnr].simple_rest_content_type
+  local lang = content_type_to_lang(content_type)
+  if not lang then
+    return
+  end
+
+  -- Find body region
+  local body_start_row = nil
+  for row = 0, line_count - 1 do
+    local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ''
+    if line:match '^## Body' then
+      body_start_row = row + 2
+      break
+    end
+  end
+
+  if not body_start_row or body_start_row >= line_count then
+    return
+  end
+
+  -- Get body text
+  local body_lines = vim.api.nvim_buf_get_lines(bufnr, body_start_row, line_count, false)
+  local body_text = table.concat(body_lines, '\n')
+
+  if body_text == '' then
+    return
+  end
+
+  -- Parse with treesitter
+  local ok, parser = pcall(vim.treesitter.get_string_parser, body_text, lang)
+  if not ok then
+    return
+  end
+
+  local ok2, tree = pcall(function()
+    return parser:parse()
+  end)
+  if not ok2 or not tree or not tree[1] then
+    return
+  end
+
+  local root = tree[1]:root()
+  local query = vim.treesitter.query.get(lang, 'highlights')
+  if not query then
+    return
+  end
+
+  for id, node, metadata in query:iter_captures(root, body_text) do
+    local start_row, start_col, end_row, end_col = node:range()
+    local capture_name = query.captures[id]
+    local hl_group = '@' .. capture_name
+
+    -- Offset rows to buffer coordinates
+    local buf_start_row = body_start_row + start_row
+    local buf_end_row = body_start_row + end_row
+
+    if start_row == end_row then
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, hl_ns, buf_start_row, start_col, {
+        end_col = end_col,
+        hl_group = hl_group,
+      })
+    else
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, hl_ns, buf_start_row, start_col, {
+        end_col = -1,
+        hl_group = hl_group,
+      })
+      for r = buf_start_row + 1, buf_end_row - 1 do
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, hl_ns, r, 0, {
+          end_col = -1,
+          hl_group = hl_group,
+        })
+      end
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, hl_ns, buf_end_row, 0, {
+        end_col = end_col,
+        hl_group = hl_group,
+      })
     end
   end
 end

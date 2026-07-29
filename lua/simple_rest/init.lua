@@ -5,6 +5,24 @@ local notifier = require 'simple_rest.notifier'
 local core = require 'simple_rest.core'
 local parser = require 'simple_rest.parser'
 local client = require 'simple_rest.client'
+local formatter = require 'simple_rest.formatter'
+
+--[[
+  Config example:
+    require('simple_rest').setup({
+      formatters = {
+        json = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/simple_rest_response.json' } },
+        html = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/simple_rest_response.html' } },
+        xml  = { command = 'xmllint',   args = { '--format', '-' } },
+      },
+    })
+
+  Or shorthand (no extra args):
+    json = 'prettierd'
+--]]
+M.config = {
+  formatters = {},
+}
 
 local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequestUnderCursor' }
 
@@ -47,7 +65,12 @@ local function create_user_commands()
   })
 end
 
-function M.setup()
+---@param opts? table
+function M.setup(opts)
+  opts = opts or {}
+  if opts.formatters then
+    M.config.formatters = vim.tbl_extend('force', M.config.formatters, opts.formatters)
+  end
   create_user_commands()
 end
 
@@ -81,8 +104,10 @@ function M.run_request_under_cursor()
     return
   end
 
-  -- Open results window on Simple tab, clear all tabs
-  window.open 'simple'
+  -- Open results window if closed; if already open, stay on current tab
+  if not window.is_open() then
+    window.open 'simple'
+  end
   window.clear_tab 'simple'
   window.clear_tab 'full'
   window.clear_tab 'verbose'
@@ -116,6 +141,14 @@ function M.run_request_under_cursor()
       vim.schedule(function()
         notifier.stop('Done! Status: ' .. result.status)
 
+        -- Determine content-type for formatting and highlighting
+        local content_type = result.response_headers['Content-Type']
+          or result.response_headers['content-type']
+
+        -- Try to format body
+        local formatted_body = formatter.format_body(content_type, result.body, M.config)
+        local body_to_show = formatted_body or result.body
+
         -- Build Full tab entirely from parsed verbose data
         local full_lines = {
           '# Request',
@@ -146,12 +179,12 @@ function M.run_request_under_cursor()
         table.insert(full_lines, '')
 
         -- Add body lines
-        for body_line in (result.body .. '\n'):gmatch '([^\n]*)\n' do
+        for body_line in (body_to_show .. '\n'):gmatch '([^\n]*)\n' do
           table.insert(full_lines, body_line)
         end
 
         window.set_tab_lines('full', full_lines)
-        window.highlight_tab('full')
+        window.highlight_tab('full', content_type)
 
         -- Build Simple tab: request + response (no request headers)
         local simple_lines = {
@@ -172,15 +205,15 @@ function M.run_request_under_cursor()
         table.insert(simple_lines, '## Body')
         table.insert(simple_lines, '')
 
-        for body_line in (result.body .. '\n'):gmatch '([^\n]*)\n' do
+        for body_line in (body_to_show .. '\n'):gmatch '([^\n]*)\n' do
           table.insert(simple_lines, body_line)
         end
 
         window.set_tab_lines('simple', simple_lines)
-        window.highlight_tab('simple')
+        window.highlight_tab('simple', content_type)
 
         -- Highlight the verbose buffer once the stream is complete
-        window.highlight_tab('verbose')
+        window.highlight_tab 'verbose'
       end)
     end
   )

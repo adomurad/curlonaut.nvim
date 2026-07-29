@@ -13,6 +13,7 @@ X-Request-ID: this is a request id
 @ACCESS_TOKEN = @response.body.body.token
 @REQUEST_ID = @response.headers.ETag
 @MISSING = @response.headers.missing_header
+@USER = @response.headers.connection
 
 ### Use extracted token
 
@@ -20,4 +21,9 @@ GET {{baseUrl}}/echo
 Authorization: Bearer {{ACCESS_TOKEN}}
 X-Request-ID: {{REQUEST_ID}}
 X-Missing: {{MISSING}}
+
+### response extractor should override env
+
+GET {{baseUrl}}/echo
+X-HEEEEEEEEERE_OVERRITE: {{USER}}
 

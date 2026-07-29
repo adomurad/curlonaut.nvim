@@ -81,31 +81,33 @@ function M.run_request_under_cursor()
     return
   end
 
-  window.open()
-  window.clear()
+  -- Open results window on Simple tab, clear both tabs
+  window.open 'simple'
+  window.clear_tab 'simple'
+  window.clear_tab 'verbose'
 
-  -- Show request summary
-  local lines = {
+  -- Build Simple tab content: request summary
+  local simple_lines = {
     '# Request',
     parsed.method .. ' ' .. parsed.url,
     '',
   }
 
   if parsed.body then
-    table.insert(lines, 'Body:')
+    table.insert(simple_lines, 'Body:')
     for body_line in (parsed.body .. '\n'):gmatch '([^\n]*)\n' do
-      table.insert(lines, body_line)
+      table.insert(simple_lines, body_line)
     end
-    table.insert(lines, '')
+    table.insert(simple_lines, '')
   end
 
-  table.insert(lines, '---')
-  table.insert(lines, '')
-  table.insert(lines, '# Verbose Output')
-  table.insert(lines, '---')
-  table.insert(lines, '')
+  table.insert(simple_lines, '---')
+  table.insert(simple_lines, '')
 
-  window.set_lines(lines)
+  window.set_tab_lines('simple', simple_lines)
+
+  -- Verbose tab: header only (content streams in live)
+  window.set_tab_lines('verbose', { '# Verbose Output', '' })
 
   notifier.start('Running ' .. parsed.method .. ' ' .. parsed.url)
 
@@ -116,16 +118,17 @@ function M.run_request_under_cursor()
     parsed.body,
     nil, -- on_stdout_chunk (we collect body at the end)
     function(line)
-      -- on_stderr_chunk - stream verbose output live
+      -- on_stderr_chunk - stream verbose output live to Verbose tab
       vim.schedule(function()
-        window.append_lines { line }
+        window.append_tab_lines('verbose', { line })
       end)
     end,
     function(result)
       vim.schedule(function()
         notifier.stop('Done! Status: ' .. result.status)
 
-        local result_lines = {
+        -- Append response to Simple tab
+        local response_lines = {
           '',
           '---',
           '',
@@ -136,19 +139,19 @@ function M.run_request_under_cursor()
         }
 
         for name, value in pairs(result.response_headers) do
-          table.insert(result_lines, name .. ': ' .. value)
+          table.insert(response_lines, name .. ': ' .. value)
         end
 
-        table.insert(result_lines, '')
-        table.insert(result_lines, '## Body')
-        table.insert(result_lines, '')
+        table.insert(response_lines, '')
+        table.insert(response_lines, '## Body')
+        table.insert(response_lines, '')
 
         -- Add body lines
         for body_line in (result.body .. '\n'):gmatch '([^\n]*)\n' do
-          table.insert(result_lines, body_line)
+          table.insert(response_lines, body_line)
         end
 
-        window.append_lines(result_lines)
+        window.append_tab_lines('simple', response_lines)
       end)
     end
   )

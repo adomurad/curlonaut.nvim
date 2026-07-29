@@ -56,8 +56,10 @@ It is mostly ***vibed*** - use at your own discretion.
 | `:Curlonaut RunRequest` | Execute the request under cursor |
 | `:Curlonaut CancelRequest` | Kill the currently running request (also `<C-c>` in `.http` / results buffers) |
 | `:Curlonaut CopyCurl` | Copy the shell-escaped curl command under cursor to clipboard (does not run) |
+| `:Curlonaut ClearCookies` | Delete the in-memory cookie jar for the current `.http` / `.rest` buffer |
+| `:Curlonaut EditCookies` | Open the raw cookie jar file for the current buffer in an editor buffer |
 
-The results panel has four tabs: **Simple** (response only), **Full** (request + response), **Verbose** (live curl stderr), and **Curl** (the exact shell-safe curl command used, ready to copy and paste into a terminal).
+The results panel has five tabs: **Simple** (response only), **Full** (request + response), **Verbose** (live curl stderr), **Curl** (the exact shell-safe curl command used, ready to copy and paste into a terminal), and **Cookies** (current cookie jar contents).
 
 ## .http File Format
 
@@ -154,6 +156,28 @@ GET https://slow.example.com/data
 ```
 
 File-level flags are applied first, then per-request flags. On conflicts (e.g. two `--max-time` values), curl uses the last one, so per-request naturally wins.
+
+### Cookie Jar
+
+Enable a per-file cookie jar by adding `# @cookie-jar` before the first request. All requests in the same file then share cookies automatically via curl's native `--cookie` / `--cookie-jar` mechanism.
+
+```http
+# @cookie-jar
+
+POST {{base_url}}/login
+Content-Type: application/json
+
+{ "username": "admin", "password": "secret" }
+
+###
+
+GET {{base_url}}/dashboard
+```
+
+- Cookies are stored in a temporary file and live only for the current Neovim session (deleted on `VimLeavePre`).
+- After any request completes, open the **Cookies** tab to inspect the current jar.
+- Press `D` inside the Cookies tab to clear the jar, or run `:Curlonaut ClearCookies`.
+- Press `e` inside the Cookies tab to edit the raw cookie jar file directly.
 
 ## Environment Variables
 

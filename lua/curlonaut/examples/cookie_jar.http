@@ -1,0 +1,9 @@
+# @cookie-jar
+
+@baseUrl = http://localhost:3000/api
+
+### JSON response body
+
+GET {{baseUrl}}/cookies
+
+

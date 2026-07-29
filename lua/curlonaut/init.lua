@@ -8,6 +8,7 @@ local client = require 'curlonaut.client'
 local env = require 'curlonaut.env'
 local extractors = require 'curlonaut.extractors'
 local renderer = require 'curlonaut.renderer'
+local cookies = require 'curlonaut.cookies'
 
 --[[
   Config example:
@@ -26,7 +27,7 @@ M.config = {
   formatters = {},
 }
 
-local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequest', 'CopyCurl', 'CancelRequest' }
+local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequest', 'CopyCurl', 'CancelRequest', 'ClearCookies', 'EditCookies' }
 
 ---@param arg_lead string
 ---@param cmd_line string
@@ -61,6 +62,10 @@ local function create_user_commands()
       M.copy_curl()
     elseif args.args == 'CancelRequest' then
       M.cancel_request()
+    elseif args.args == 'ClearCookies' then
+      M.clear_cookies()
+    elseif args.args == 'EditCookies' then
+      M.edit_cookies()
     else
       print 'Error: wrong arg!'
     end
@@ -78,6 +83,13 @@ function M.setup(opts)
     M.config.formatters = vim.tbl_extend('force', M.config.formatters, opts.formatters)
   end
   create_user_commands()
+
+  vim.api.nvim_create_autocmd('VimLeavePre', {
+    group = vim.api.nvim_create_augroup('CurlonautCleanup', { clear = true }),
+    callback = function()
+      cookies.cleanup_all()
+    end,
+  })
 end
 
 function M.open_results()
@@ -101,6 +113,43 @@ function M.cancel_request()
   else
     vim.notify('[curlonaut] No active request to cancel', vim.log.levels.WARN)
   end
+end
+
+function M.clear_cookies()
+  local bufnr = vim.api.nvim_get_current_buf()
+  -- If called from the cookies results tab, look up the source .http buffer.
+  local source_buf = vim.b[bufnr].curlonaut_source_bufnr
+  if source_buf then
+    bufnr = source_buf
+  end
+
+  if cookies.clear_jar(bufnr) then
+    vim.notify('[curlonaut] Cookie jar cleared', vim.log.levels.INFO)
+    window.clear_tab 'cookies'
+    window.set_tab_lines('cookies', { '# Cookie Jar', '', '(cleared)' })
+  else
+    vim.notify('[curlonaut] No cookie jar for this buffer', vim.log.levels.WARN)
+  end
+end
+
+function M.edit_cookies()
+  local bufnr = vim.api.nvim_get_current_buf()
+  -- If called from the cookies results tab, look up the source .http buffer.
+  local source_buf = vim.b[bufnr].curlonaut_source_bufnr
+  if source_buf then
+    bufnr = source_buf
+  end
+
+  local path = cookies.get_edit_path(bufnr)
+  if not path then
+    vim.notify('[curlonaut] No cookie jar for this buffer', vim.log.levels.WARN)
+    return
+  end
+  if vim.fn.filereadable(path) ~= 1 then
+    vim.notify('[curlonaut] Cookie jar file does not exist yet', vim.log.levels.WARN)
+    return
+  end
+  vim.cmd('edit ' .. vim.fn.fnameescape(path))
 end
 
 function M.goto_next_request()
@@ -215,6 +264,9 @@ function M.run_request()
   local start_row, start_col, end_row, end_col = req:range()
   core.flash_request(bufnr, start_row, start_col, end_row, end_col)
 
+  -- Cookie jar (per-file, opt-in via # @cookie-jar directive)
+  local cookie_jar_path = cookies.get_jar_path(bufnr)
+
   -- Build curl command lines for the Curl tab
   local curl_lines = client.build_command_lines(
     parsed.url,
@@ -222,17 +274,22 @@ function M.run_request()
     parsed.headers,
     parsed.body,
     parsed.form_fields,
-    parsed.curl_flags
+    parsed.curl_flags,
+    cookie_jar_path
   )
 
   -- Open results window if closed; if already open, stay on current tab
   if not window.is_open() then
     window.open 'simple'
+  else
+    -- Ensure winbar is up-to-date (tab list may have changed after update)
+    window.refresh_winbar()
   end
   window.clear_tab 'simple'
   window.clear_tab 'full'
   window.clear_tab 'verbose'
   window.clear_tab 'curl'
+  window.clear_tab 'cookies'
 
   -- Simple tab: placeholder until request completes
   window.set_tab_lines('simple', {
@@ -273,6 +330,7 @@ function M.run_request()
     parsed.body,
     parsed.form_fields,
     parsed.curl_flags,
+    cookie_jar_path,
     nil, -- on_stdout_chunk (we collect body at the end)
     function(line)
       -- on_stderr_chunk - stream verbose output live to Verbose tab
@@ -301,6 +359,27 @@ function M.run_request()
         window.highlight_tab('simple', simple_ct)
 
         window.highlight_tab 'verbose'
+
+        -- Populate cookies tab if a jar is active for this buffer
+        if cookie_jar_path then
+          local jar_content = cookies.read_jar(bufnr)
+          local cookie_lines
+          if jar_content then
+            local parsed_cookies = cookies.parse_cookies(jar_content)
+            cookie_lines = cookies.format_cookies(parsed_cookies)
+          else
+            cookie_lines = { '# Cookie Jar', '', '(empty)' }
+          end
+          window.set_tab_lines('cookies', cookie_lines)
+          window.highlight_tab 'cookies'
+
+          -- Remember which .http buffer this jar belongs to so clear/edit
+          -- work when invoked from the cookies results tab.
+          local cookies_buf = vim.fn.bufnr('curlonaut://cookies')
+          if cookies_buf ~= -1 then
+            vim.b[cookies_buf].curlonaut_source_bufnr = bufnr
+          end
+        end
       end)
     end
   )
@@ -317,13 +396,16 @@ function M.copy_curl()
     return
   end
 
+  local cookie_jar_path = cookies.get_jar_path(bufnr)
+
   local curl_lines = client.build_command_lines(
     parsed.url,
     parsed.method,
     parsed.headers,
     parsed.body,
     parsed.form_fields,
-    parsed.curl_flags
+    parsed.curl_flags,
+    cookie_jar_path
   )
   local curl_cmd = table.concat(curl_lines, '\n')
 

@@ -207,4 +207,35 @@ function M.highlight_verbose_buffer(bufnr)
   end
 end
 
+---Apply semantic highlights to a Cookies tab buffer.
+---@param bufnr integer
+function M.highlight_cookies_buffer(bufnr)
+  vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
+
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  for row = 0, line_count - 1 do
+    local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ''
+    local line_len = #line
+
+    -- # Cookie Jar → Title
+    if line:match '^# Cookie' then
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = line_len, hl_group = 'Title' })
+
+    -- --- separator → Comment
+    elseif line:match '^%-%-%-' then
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = line_len, hl_group = 'Comment' })
+
+    -- Label: value → Identifier for label, String for value
+    -- Example: "Domain:   localhost"
+    elseif line:match '^%u%a*: ' then
+      local colon_pos = line:find ':'
+      if colon_pos then
+        local value_start = colon_pos + 1
+        vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = colon_pos - 1, hl_group = 'Identifier' })
+        vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, value_start - 1, { end_col = line_len, hl_group = 'String' })
+      end
+    end
+  end
+end
+
 return M

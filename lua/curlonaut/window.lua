@@ -4,7 +4,8 @@ local SIMPLE_BUF_NAME = 'curlonaut://simple'
 local FULL_BUF_NAME = 'curlonaut://full'
 local VERBOSE_BUF_NAME = 'curlonaut://verbose'
 local CURL_BUF_NAME = 'curlonaut://curl'
-local TABS = { 'simple', 'full', 'verbose', 'curl' }
+local COOKIES_BUF_NAME = 'curlonaut://cookies'
+local TABS = { 'simple', 'full', 'verbose', 'curl', 'cookies' }
 
 ---@type string
 local active_tab = 'simple'
@@ -18,6 +19,8 @@ local function buf_name_for_tab(tab_name)
     return VERBOSE_BUF_NAME
   elseif tab_name == 'curl' then
     return CURL_BUF_NAME
+  elseif tab_name == 'cookies' then
+    return COOKIES_BUF_NAME
   end
   return SIMPLE_BUF_NAME
 end
@@ -35,6 +38,26 @@ local function get_or_create_buf(tab_name)
     vim.api.nvim_set_option_value('swapfile', false, { buf = buf })
     local ft = tab_name == 'curl' and 'sh' or 'curlonaut'
     vim.api.nvim_set_option_value('filetype', ft, { buf = buf })
+
+    -- Cookie tab: buffer-local keymap to clear cookies
+    if tab_name == 'cookies' then
+      vim.api.nvim_buf_set_keymap(buf, 'n', 'D', '', {
+        noremap = true,
+        silent = true,
+        callback = function()
+          require('curlonaut').clear_cookies()
+        end,
+        desc = 'Clear cookie jar',
+      })
+      vim.api.nvim_buf_set_keymap(buf, 'n', 'e', '', {
+        noremap = true,
+        silent = true,
+        callback = function()
+          require('curlonaut').edit_cookies()
+        end,
+        desc = 'Edit cookie jar',
+      })
+    end
 
     -- Buffer-local keymaps for tab switching
     vim.api.nvim_buf_set_keymap(buf, 'n', '<S-l>', '', {
@@ -162,6 +185,15 @@ function M.focus()
   end
 end
 
+---Refresh the winbar on the results window without changing tabs.
+---Useful when the tab list changes (e.g. after a plugin update).
+function M.refresh_winbar()
+  local win = get_results_win()
+  if win ~= -1 then
+    set_winbar(win, active_tab)
+  end
+end
+
 ---Switch to the next or previous tab.
 ---@param direction 'next' | 'prev'
 function M.switch_tab(direction)
@@ -242,6 +274,8 @@ function M.highlight_tab(tab_name, content_type)
   local highlighter = require 'curlonaut.highlighter'
   if tab_name == 'verbose' then
     highlighter.highlight_verbose_buffer(buf)
+  elseif tab_name == 'cookies' then
+    highlighter.highlight_cookies_buffer(buf)
   elseif tab_name ~= 'curl' then
     highlighter.highlight_buffer(buf)
   end

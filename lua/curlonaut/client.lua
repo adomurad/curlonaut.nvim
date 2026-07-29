@@ -36,8 +36,9 @@ end
 ---@param form_fields? SimpleRestFormField[]
 ---@param include_status_writer? boolean defaults to true; set to false for display/copy
 ---@param curl_flags? string[] extra curl flags (e.g. --insecure)
+---@param cookie_jar_path? string path to a cookie jar file (--cookie-jar / --cookie)
 ---@return string[]
-function M.build_args(url, method, headers, body, form_fields, include_status_writer, curl_flags)
+function M.build_args(url, method, headers, body, form_fields, include_status_writer, curl_flags, cookie_jar_path)
   method = method or 'GET'
   include_status_writer = include_status_writer ~= false
 
@@ -48,6 +49,13 @@ function M.build_args(url, method, headers, body, form_fields, include_status_wr
     method,
     url,
   }
+
+  if cookie_jar_path then
+    table.insert(args, '--cookie-jar')
+    table.insert(args, cookie_jar_path)
+    table.insert(args, '--cookie')
+    table.insert(args, cookie_jar_path)
+  end
 
   if include_status_writer then
     table.insert(args, '-w')
@@ -124,9 +132,10 @@ end
 ---@param body? string
 ---@param form_fields? SimpleRestFormField[]
 ---@param curl_flags? string[]
+---@param cookie_jar_path? string
 ---@return string[]
-function M.build_command_lines(url, method, headers, body, form_fields, curl_flags)
-  local args = M.build_args(url, method, headers, body, form_fields, false, curl_flags)
+function M.build_command_lines(url, method, headers, body, form_fields, curl_flags, cookie_jar_path)
+  local args = M.build_args(url, method, headers, body, form_fields, false, curl_flags, cookie_jar_path)
   local lines = { 'curl \\' }
   for i, arg in ipairs(args) do
     local formatted = needs_quoting(arg) and shell_escape(arg) or arg
@@ -145,11 +154,12 @@ end
 ---@param body? string
 ---@param form_fields? SimpleRestFormField[]
 ---@param curl_flags? string[]
+---@param cookie_jar_path? string
 ---@param on_chunk? fun(line: string)
 ---@param on_stderr_chunk? fun(line: string)
 ---@param on_done? fun(result: SimpleRestResponse)
-M.send = function(url, method, headers, body, form_fields, curl_flags, on_chunk, on_stderr_chunk, on_done)
-  local args = M.build_args(url, method, headers, body, form_fields, true, curl_flags)
+M.send = function(url, method, headers, body, form_fields, curl_flags, cookie_jar_path, on_chunk, on_stderr_chunk, on_done)
+  local args = M.build_args(url, method, headers, body, form_fields, true, curl_flags, cookie_jar_path)
 
   is_cancelled = false
   local stdout_lines = {}

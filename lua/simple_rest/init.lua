@@ -151,6 +151,7 @@ function M.run_request_under_cursor()
         end
 
         window.set_tab_lines('full', full_lines)
+        window.highlight_tab('full')
 
         -- Build Simple tab: request + response (no request headers)
         local simple_lines = {
@@ -176,6 +177,10 @@ function M.run_request_under_cursor()
         end
 
         window.set_tab_lines('simple', simple_lines)
+        window.highlight_tab('simple')
+
+        -- Highlight the verbose buffer once the stream is complete
+        window.highlight_tab('verbose')
       end)
     end
   )

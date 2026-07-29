@@ -219,4 +219,16 @@ function M.clear_tab(tab_name)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
 end
 
+---Apply syntax highlighting to a tab buffer.
+---@param tab_name string
+function M.highlight_tab(tab_name)
+  local buf = get_or_create_buf(tab_name)
+  local highlighter = require 'simple_rest.highlighter'
+  if tab_name == 'verbose' then
+    highlighter.highlight_verbose_buffer(buf)
+  else
+    highlighter.highlight_buffer(buf)
+  end
+end
+
 return M

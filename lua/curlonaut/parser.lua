@@ -7,6 +7,7 @@ local M = {}
 ---@field body string|nil
 ---@field form_fields table[]|nil
 ---@field response_extractors table[]|nil
+---@field curl_flags string[]|nil
 
 ---Extract the first child node of a given type.
 ---@param node TSNode
@@ -40,6 +41,72 @@ end
 ---@return string
 local function get_text(node, bufnr)
   return vim.treesitter.get_node_text(node, bufnr)
+end
+
+---Extract @curl whitespace-split flags from comment children of a node.
+---@param node TSNode
+---@param bufnr integer
+---@return string[]
+local function extract_curl_flags(node, bufnr)
+  local flags = {}
+  for child, _ in node:iter_children() do
+    if child:type() == 'comment' then
+      local id_node = get_child(child, 'identifier')
+      if id_node and get_text(id_node, bufnr) == 'curl' then
+        local value_node = get_child(child, 'value')
+        if value_node then
+          local value = vim.trim(get_text(value_node, bufnr))
+          for flag in value:gmatch('%S+') do
+            table.insert(flags, flag)
+          end
+        end
+      end
+    end
+  end
+  return flags
+end
+
+---Extract @curl flags from a request node's parent section.
+---Comments before the request line are children of `section`, not `request`.
+---@param request_node TSNode
+---@param bufnr integer
+---@return string[]
+local function extract_section_curl_flags(request_node, bufnr)
+  local flags = {}
+  local section = request_node:parent()
+  if not section or section:type() ~= 'section' then
+    return flags
+  end
+  local req_id = request_node:id()
+  for child, _ in section:iter_children() do
+    -- Only collect comments that appear before this request node
+    if child:type() == 'comment' and child:id() ~= req_id then
+      -- Ensure it's not inside another request in the same section
+      local is_before = false
+      for sib, _ in section:iter_children() do
+        if sib:id() == req_id then
+          break
+        end
+        if sib:id() == child:id() then
+          is_before = true
+          break
+        end
+      end
+      if is_before then
+        local id_node = get_child(child, 'identifier')
+        if id_node and get_text(id_node, bufnr) == 'curl' then
+          local value_node = get_child(child, 'value')
+          if value_node then
+            local value = vim.trim(get_text(value_node, bufnr))
+            for flag in value:gmatch('%S+') do
+              table.insert(flags, flag)
+            end
+          end
+        end
+      end
+    end
+  end
+  return flags
 end
 
 ---Parse a treesitter `request` node into structured data.
@@ -148,6 +215,14 @@ function M.parse_request(request_node, bufnr)
     end
   end
 
+  local curl_flags = extract_curl_flags(request_node, bufnr)
+  local section_flags = extract_section_curl_flags(request_node, bufnr)
+  -- Pre-request section flags come first, then in-request flags
+  local all_flags = vim.deepcopy(section_flags)
+  for _, f in ipairs(curl_flags) do
+    table.insert(all_flags, f)
+  end
+
   return {
     method = method,
     url = url,
@@ -155,7 +230,58 @@ function M.parse_request(request_node, bufnr)
     body = body,
     form_fields = form_fields,
     response_extractors = response_extractors,
+    curl_flags = all_flags,
   }
+end
+
+---Collect file-level @curl directives from sections before the first request.
+---@param bufnr integer
+---@return string[]
+function M.get_file_curl_flags(bufnr)
+  bufnr = bufnr or 0
+  local ok, parser = pcall(vim.treesitter.get_parser, bufnr, 'http')
+  if not ok then
+    return {}
+  end
+  parser:parse()
+  local tree = parser:trees()[1]
+  if not tree then
+    return {}
+  end
+
+  local flags = {}
+  for section, _ in tree:root():iter_children() do
+    if section:type() == 'section' then
+      -- Stop at first section that contains a request or separator
+      local has_request = false
+      for child, _ in section:iter_children() do
+        local t = child:type()
+        if t == 'request' or t == 'request_separator' then
+          has_request = true
+          break
+        end
+      end
+      if has_request then
+        break
+      end
+      -- Extract @curl from this section's comments
+      for child, _ in section:iter_children() do
+        if child:type() == 'comment' then
+          local id_node = get_child(child, 'identifier')
+          if id_node and get_text(id_node, bufnr) == 'curl' then
+            local value_node = get_child(child, 'value')
+            if value_node then
+              local value = vim.trim(get_text(value_node, bufnr))
+              for flag in value:gmatch('%S+') do
+                table.insert(flags, flag)
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  return flags
 end
 
 return M

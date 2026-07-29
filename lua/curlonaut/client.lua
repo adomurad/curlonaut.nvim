@@ -32,8 +32,9 @@ end
 ---@param body? string
 ---@param form_fields? SimpleRestFormField[]
 ---@param include_status_writer? boolean defaults to true; set to false for display/copy
+---@param curl_flags? string[] extra curl flags (e.g. --insecure)
 ---@return string[]
-function M.build_args(url, method, headers, body, form_fields, include_status_writer)
+function M.build_args(url, method, headers, body, form_fields, include_status_writer, curl_flags)
   method = method or 'GET'
   include_status_writer = include_status_writer ~= false
 
@@ -48,6 +49,12 @@ function M.build_args(url, method, headers, body, form_fields, include_status_wr
   if include_status_writer then
     table.insert(args, '-w')
     table.insert(args, '\n__CURLONAUT_STATUS__:%{http_code}\n__CURLONAUT_TIME__:%{time_total}')
+  end
+
+  if curl_flags and #curl_flags > 0 then
+    for _, flag in ipairs(curl_flags) do
+      table.insert(args, flag)
+    end
   end
 
   -- Work on a shallow copy so we don't mutate the caller's headers table.
@@ -113,9 +120,10 @@ end
 ---@param headers? table<string, string>
 ---@param body? string
 ---@param form_fields? SimpleRestFormField[]
+---@param curl_flags? string[]
 ---@return string[]
-function M.build_command_lines(url, method, headers, body, form_fields)
-  local args = M.build_args(url, method, headers, body, form_fields, false)
+function M.build_command_lines(url, method, headers, body, form_fields, curl_flags)
+  local args = M.build_args(url, method, headers, body, form_fields, false, curl_flags)
   local lines = { 'curl \\' }
   for i, arg in ipairs(args) do
     local formatted = needs_quoting(arg) and shell_escape(arg) or arg
@@ -133,11 +141,12 @@ end
 ---@param headers? table<string, string>
 ---@param body? string
 ---@param form_fields? SimpleRestFormField[]
+---@param curl_flags? string[]
 ---@param on_chunk? fun(line: string)
 ---@param on_stderr_chunk? fun(line: string)
 ---@param on_done? fun(result: SimpleRestResponse)
-M.send = function(url, method, headers, body, form_fields, on_chunk, on_stderr_chunk, on_done)
-  local args = M.build_args(url, method, headers, body, form_fields)
+M.send = function(url, method, headers, body, form_fields, curl_flags, on_chunk, on_stderr_chunk, on_done)
+  local args = M.build_args(url, method, headers, body, form_fields, true, curl_flags)
 
   local stdout_lines = {}
   local stderr_lines = {}

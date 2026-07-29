@@ -1,0 +1,5 @@
+# @curl --insecure
+
+### Exprired ssl
+
+GET https://expired.badssl.com/

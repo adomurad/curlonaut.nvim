@@ -1,0 +1,9 @@
+### Exprired ssl - bad
+
+GET https://expired.badssl.com/
+
+### Exprired ssl - good
+
+# @curl --insecure
+
+GET https://expired.badssl.com/

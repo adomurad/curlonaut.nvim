@@ -135,6 +135,14 @@ local function prepare_request()
     end
   end
 
+  -- Merge file-level and per-request curl flags (per-request wins on conflicts)
+  local file_flags = parser.get_file_curl_flags(bufnr)
+  local req_flags = parsed.curl_flags or {}
+  parsed.curl_flags = vim.list_extend(vim.deepcopy(file_flags), req_flags)
+  for i, flag in ipairs(parsed.curl_flags) do
+    parsed.curl_flags[i] = env.substitute(flag, env_table)
+  end
+
   return parsed
 end
 
@@ -195,7 +203,8 @@ function M.run_request()
     parsed.method,
     parsed.headers,
     parsed.body,
-    parsed.form_fields
+    parsed.form_fields,
+    parsed.curl_flags
   )
 
   -- Open results window if closed; if already open, stay on current tab
@@ -245,6 +254,7 @@ function M.run_request()
     parsed.headers,
     parsed.body,
     parsed.form_fields,
+    parsed.curl_flags,
     nil, -- on_stdout_chunk (we collect body at the end)
     function(line)
       -- on_stderr_chunk - stream verbose output live to Verbose tab
@@ -288,7 +298,8 @@ function M.copy_curl()
     parsed.method,
     parsed.headers,
     parsed.body,
-    parsed.form_fields
+    parsed.form_fields,
+    parsed.curl_flags
   )
   local curl_cmd = table.concat(curl_lines, '\n')
 

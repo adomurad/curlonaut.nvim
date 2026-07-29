@@ -6,6 +6,8 @@ Uses .rest / .http files and curl to send the requests.
 
 This is a simple project - mainly suited to solve my needs.
 
+It is mostly ***vibed*** - use at your own discretion.
+
 ## Installation
 
 ### lazy.nvim
@@ -121,6 +123,32 @@ Authorization: Bearer {{ACCESS_TOKEN}}
 
 - `@response.body.path` — JSON dot-path, supports arrays like `items[0].id`
 - `@response.headers.name` — case-insensitive header lookup
+
+### Custom cURL Flags
+
+Pass arbitrary curl flags per-file (applies to all requests) or per-request. Flags are whitespace-split and appended to the generated curl command.
+
+**Per-file** — place before the first request:
+
+```http
+# @curl --insecure
+# @curl --connect-timeout 5
+
+###
+
+GET https://localhost/api
+```
+
+**Per-request** — place inside a request block:
+
+```http
+###
+# @curl --max-time 10
+
+GET https://slow.example.com/data
+```
+
+File-level flags are applied first, then per-request flags. On conflicts (e.g. two `--max-time` values), curl uses the last one, so per-request naturally wins.
 
 ## Environment Variables
 

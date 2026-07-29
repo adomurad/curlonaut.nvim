@@ -81,30 +81,19 @@ function M.run_request_under_cursor()
     return
   end
 
-  -- Open results window on Simple tab, clear both tabs
+  -- Open results window on Simple tab, clear all tabs
   window.open 'simple'
   window.clear_tab 'simple'
+  window.clear_tab 'full'
   window.clear_tab 'verbose'
 
-  -- Build Simple tab content: request summary
-  local simple_lines = {
+  -- Simple tab: placeholder until request completes
+  window.set_tab_lines('simple', {
     '# Request',
     parsed.method .. ' ' .. parsed.url,
     '',
-  }
-
-  if parsed.body then
-    table.insert(simple_lines, 'Body:')
-    for body_line in (parsed.body .. '\n'):gmatch '([^\n]*)\n' do
-      table.insert(simple_lines, body_line)
-    end
-    table.insert(simple_lines, '')
-  end
-
-  table.insert(simple_lines, '---')
-  table.insert(simple_lines, '')
-
-  window.set_tab_lines('simple', simple_lines)
+    '...',
+  })
 
   -- Verbose tab: header only (content streams in live)
   window.set_tab_lines('verbose', { '# Verbose Output', '' })
@@ -127,31 +116,66 @@ function M.run_request_under_cursor()
       vim.schedule(function()
         notifier.stop('Done! Status: ' .. result.status)
 
-        -- Append response to Simple tab
-        local response_lines = {
+        -- Build Full tab entirely from parsed verbose data
+        local full_lines = {
+          '# Request',
+          parsed.method .. ' ' .. parsed.url,
           '',
-          '---',
+        }
+
+        if next(result.request_headers) then
+          table.insert(full_lines, '## Headers')
+          for name, value in pairs(result.request_headers) do
+            table.insert(full_lines, name .. ': ' .. value)
+          end
+          table.insert(full_lines, '')
+        end
+
+        table.insert(full_lines, '')
+        table.insert(full_lines, '# Response')
+        table.insert(full_lines, 'Status: ' .. result.status)
+        table.insert(full_lines, '')
+
+        table.insert(full_lines, '## Headers')
+        for name, value in pairs(result.response_headers) do
+          table.insert(full_lines, name .. ': ' .. value)
+        end
+
+        table.insert(full_lines, '')
+        table.insert(full_lines, '## Body')
+        table.insert(full_lines, '')
+
+        -- Add body lines
+        for body_line in (result.body .. '\n'):gmatch '([^\n]*)\n' do
+          table.insert(full_lines, body_line)
+        end
+
+        window.set_tab_lines('full', full_lines)
+
+        -- Build Simple tab: request + response (no request headers)
+        local simple_lines = {
+          '# Request',
+          parsed.method .. ' ' .. parsed.url,
           '',
           '# Response',
           'Status: ' .. result.status,
           '',
-          '## Response Headers',
         }
 
+        table.insert(simple_lines, '## Headers')
         for name, value in pairs(result.response_headers) do
-          table.insert(response_lines, name .. ': ' .. value)
+          table.insert(simple_lines, name .. ': ' .. value)
         end
 
-        table.insert(response_lines, '')
-        table.insert(response_lines, '## Body')
-        table.insert(response_lines, '')
+        table.insert(simple_lines, '')
+        table.insert(simple_lines, '## Body')
+        table.insert(simple_lines, '')
 
-        -- Add body lines
         for body_line in (result.body .. '\n'):gmatch '([^\n]*)\n' do
-          table.insert(response_lines, body_line)
+          table.insert(simple_lines, body_line)
         end
 
-        window.append_tab_lines('simple', response_lines)
+        window.set_tab_lines('simple', simple_lines)
       end)
     end
   )

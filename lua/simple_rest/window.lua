@@ -1,8 +1,9 @@
 local M = {}
 
 local SIMPLE_BUF_NAME = 'simple_rest://simple'
+local FULL_BUF_NAME = 'simple_rest://full'
 local VERBOSE_BUF_NAME = 'simple_rest://verbose'
-local TABS = { 'simple', 'verbose' }
+local TABS = { 'simple', 'full', 'verbose' }
 
 ---@type string
 local active_tab = 'simple'
@@ -10,7 +11,9 @@ local active_tab = 'simple'
 ---@param tab_name string
 ---@return string
 local function buf_name_for_tab(tab_name)
-  if tab_name == 'verbose' then
+  if tab_name == 'full' then
+    return FULL_BUF_NAME
+  elseif tab_name == 'verbose' then
     return VERBOSE_BUF_NAME
   end
   return SIMPLE_BUF_NAME
@@ -88,7 +91,7 @@ local function set_winbar(winid, tab_name)
 end
 
 ---Open the results window on the right without stealing focus.
----@param tab_name? string defaults to active_tab or 'simple'
+---@param tab_name? string defaults to active_tab or 'response'
 ---@return integer winid
 function M.open(tab_name)
   tab_name = tab_name or active_tab

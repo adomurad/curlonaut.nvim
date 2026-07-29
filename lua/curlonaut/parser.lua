@@ -130,10 +130,11 @@ function M.parse_request(request_node, bufnr)
   -- Treesitter lumps everything after the headers into one body node, so we
   -- scan the raw body string for lines like @var = @response.body.foo and
   -- strip them out before sending the body over the wire.
+  -- Empty lines in the body are preserved.
   local response_extractors = {}
   if body then
     local body_lines = {}
-    for line in body:gmatch('[^\r\n]+') do
+    for line in (body .. '\n'):gmatch('([^\r\n]*)\r?\n') do
       local name, target = line:match('^@([A-Za-z_][A-Za-z0-9_]*)%s*=%s*(@response%.[A-Za-z0-9_.%[%]-]+)%s*$')
       if name and target then
         table.insert(response_extractors, { name = name, target = target })

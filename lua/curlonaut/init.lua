@@ -5,8 +5,9 @@ local notifier = require 'curlonaut.notifier'
 local core = require 'curlonaut.core'
 local parser = require 'curlonaut.parser'
 local client = require 'curlonaut.client'
-local formatter = require 'curlonaut.formatter'
 local env = require 'curlonaut.env'
+local extractors = require 'curlonaut.extractors'
+local renderer = require 'curlonaut.renderer'
 
 --[[
   Config example:
@@ -89,32 +90,6 @@ function M.toggle_results()
   window.toggle()
 end
 
----Extract a value from a Lua table using a dot-path string.
----Supports array indices like `items[0]` (0-based, converted to 1-based for Lua).
----@param obj table
----@param path string
----@return any
-local function extract_json_path(obj, path)
-  local current = obj
-  -- Match parts: either `key` or `key[index]`
-  for part in path:gmatch('[^.]+') do
-    local key, idx = part:match('^(.-)%[(%d+)%]$')
-    if key then
-      current = current[key]
-      if type(current) ~= 'table' then
-        return nil
-      end
-      current = current[tonumber(idx) + 1] -- 0-based to 1-based
-    else
-      current = current[part]
-    end
-    if current == nil then
-      return nil
-    end
-  end
-  return current
-end
-
 ---Parse the request under the cursor and apply variable substitution.
 ---Returns the processed parsed request, or nil if parsing fails.
 ---@return SimpleRestParsedRequest|nil
@@ -155,14 +130,54 @@ local function prepare_request()
   return parsed
 end
 
+---Resolve multipart file paths and validate they exist.
+---@param parsed SimpleRestParsedRequest
+---@param bufnr integer
+---@return boolean ok
+local function validate_multipart_files(parsed, bufnr)
+  if not parsed.form_fields or #parsed.form_fields == 0 then
+    return true
+  end
+
+  local bufpath = vim.api.nvim_buf_get_name(bufnr)
+  local http_dir = bufpath ~= '' and vim.fn.fnamemodify(bufpath, ':h') or vim.fn.getcwd()
+
+  for _, field in ipairs(parsed.form_fields) do
+    if field.file then
+      local filepath = field.file
+      -- Resolve relative paths against the .http file's directory
+      if not filepath:match('^/') and not filepath:match('^~') then
+        filepath = vim.fn.fnamemodify(http_dir .. '/' .. filepath, ':p')
+      end
+
+      if vim.fn.filereadable(filepath) ~= 1 then
+        vim.notify(
+          '[curlonaut] Multipart file not found: ' .. field.file .. ' (resolved to: ' .. filepath .. ')',
+          vim.log.levels.ERROR
+        )
+        return false
+      end
+
+      field.file = filepath
+    end
+  end
+
+  return true
+end
+
 function M.run_request()
   local parsed = prepare_request()
   if not parsed then
     return
   end
 
-  local req = core.get_request_at_cursor()
   local bufnr = vim.api.nvim_get_current_buf()
+
+  if not validate_multipart_files(parsed, bufnr) then
+    return
+  end
+
+  local req = core.get_request_at_cursor()
   local start_row, start_col, end_row, end_col = req:range()
   core.flash_request(bufnr, start_row, start_col, end_row, end_col)
 
@@ -233,135 +248,16 @@ function M.run_request()
       vim.schedule(function()
         notifier.stop('Done! Status: ' .. result.status .. ' | ' .. result.time_ms .. 'ms')
 
-        -- Evaluate response extractors and store in session vars
-        if parsed.response_extractors and #parsed.response_extractors > 0 then
-          for _, extractor in ipairs(parsed.response_extractors) do
-            local target = extractor.target -- e.g. "@response.body.token" or "@response.headers.x-request-id"
-            local var_name = extractor.name
-            local val = nil
+        extractors.evaluate(parsed, result, env.session_vars)
 
-            if target:match('^@response%.body%.') then
-              local json_path = target:sub(16) -- remove "@response.body."
-              local ok, body_table = pcall(vim.json.decode, result.body)
-              if ok and body_table then
-                val = extract_json_path(body_table, json_path)
-              else
-                vim.notify(
-                  '[curlonaut] Extractor "' .. var_name .. '" failed: response is not valid JSON',
-                  vim.log.levels.WARN
-                )
-              end
-            elseif target:match('^@response%.headers%.') then
-              local header_name = target:sub(19) -- remove "@response.headers."
-              val = result.response_headers[header_name]
-              if not val then
-                -- case-insensitive fallback
-                for k, v in pairs(result.response_headers) do
-                  if k:lower() == header_name:lower() then
-                    val = v
-                    break
-                  end
-                end
-              end
-              if not val then
-                vim.notify(
-                  '[curlonaut] Extractor "' .. var_name .. '" failed: header "' .. header_name .. '" not found',
-                  vim.log.levels.WARN
-                )
-              end
-            else
-              vim.notify(
-                '[curlonaut] Unknown extractor target: ' .. target,
-                vim.log.levels.WARN
-              )
-            end
-
-            if val ~= nil then
-              env.session_vars[var_name] = tostring(val)
-              vim.notify(
-                '[curlonaut] Set ' .. var_name .. ' = ' .. tostring(val),
-                vim.log.levels.INFO
-              )
-            else
-              env.session_vars[var_name] = ''
-            end
-          end
-        end
-
-        -- Determine content-type for formatting and highlighting
-        local content_type = result.response_headers['Content-Type']
-          or result.response_headers['content-type']
-
-        -- Try to format body
-        local formatted_body = formatter.format_body(content_type, result.body, M.config)
-        local body_to_show = formatted_body or result.body
-
-        -- Build Full tab entirely from parsed verbose data
-        local full_lines = {
-          '# Request',
-          parsed.method .. ' ' .. parsed.url,
-          '',
-        }
-
-        if next(result.request_headers) then
-          table.insert(full_lines, '## Headers')
-          for name, value in pairs(result.request_headers) do
-            table.insert(full_lines, name .. ': ' .. value)
-          end
-          table.insert(full_lines, '')
-        end
-
-        table.insert(full_lines, '')
-        table.insert(full_lines, '# Response')
-        table.insert(full_lines, 'Status: ' .. result.status)
-        table.insert(full_lines, 'Time: ' .. result.time_ms .. 'ms')
-        table.insert(full_lines, '')
-
-        table.insert(full_lines, '## Headers')
-        for name, value in pairs(result.response_headers) do
-          table.insert(full_lines, name .. ': ' .. value)
-        end
-
-        table.insert(full_lines, '')
-        table.insert(full_lines, '## Body')
-        table.insert(full_lines, '')
-
-        -- Add body lines
-        for body_line in (body_to_show .. '\n'):gmatch '([^\n]*)\n' do
-          table.insert(full_lines, body_line)
-        end
-
+        local full_lines, full_ct = renderer.render_full(parsed, result, M.config)
         window.set_tab_lines('full', full_lines)
-        window.highlight_tab('full', content_type)
+        window.highlight_tab('full', full_ct)
 
-        -- Build Simple tab: request + response (no request headers)
-        local simple_lines = {
-          '# Request',
-          parsed.method .. ' ' .. parsed.url,
-          '',
-          '# Response',
-          'Status: ' .. result.status,
-          'Time: ' .. result.time_ms .. 'ms',
-          '',
-        }
-
-        table.insert(simple_lines, '## Headers')
-        for name, value in pairs(result.response_headers) do
-          table.insert(simple_lines, name .. ': ' .. value)
-        end
-
-        table.insert(simple_lines, '')
-        table.insert(simple_lines, '## Body')
-        table.insert(simple_lines, '')
-
-        for body_line in (body_to_show .. '\n'):gmatch '([^\n]*)\n' do
-          table.insert(simple_lines, body_line)
-        end
-
+        local simple_lines, simple_ct = renderer.render_simple(parsed, result, M.config)
         window.set_tab_lines('simple', simple_lines)
-        window.highlight_tab('simple', content_type)
+        window.highlight_tab('simple', simple_ct)
 
-        -- Highlight the verbose buffer once the stream is complete
         window.highlight_tab 'verbose'
       end)
     end
@@ -371,6 +267,11 @@ end
 function M.copy_curl()
   local parsed = prepare_request()
   if not parsed then
+    return
+  end
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  if not validate_multipart_files(parsed, bufnr) then
     return
   end
 

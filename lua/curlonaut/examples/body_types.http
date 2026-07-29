@@ -52,7 +52,7 @@ Content-Type: multipart/form-data
 
 username=john
 password=secret
-file=< ./lua/curlonaut/examples/simple.http
+file=< ./env.http
 
 ### multipart request body - with custom type
 
@@ -61,5 +61,14 @@ Content-Type: multipart/form-data
 
 username=john
 password=secret
-file=< ./lua/curlonaut/examples/simple.http;type=application/pdf
+file=< ./env.http
+
+### multipart request body - wrong file
+
+POST {{baseUrl}}/accept-multipart
+Content-Type: multipart/form-data
+
+username=john
+password=secret
+file=< ./fakefakefile.http
 

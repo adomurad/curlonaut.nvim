@@ -1,6 +1,6 @@
 ### Request 1
 
-GET https://google.com/
+GET https://jsonplaceholder.typicode.com/posts
 X-Custom-Header: test
 X-Custom-Header2: test
 

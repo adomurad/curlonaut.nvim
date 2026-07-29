@@ -3,6 +3,8 @@ local M = {}
 local window = require 'simple_rest.window'
 local notifier = require 'simple_rest.notifier'
 local core = require 'simple_rest.core'
+local parser = require 'simple_rest.parser'
+local client = require 'simple_rest.client'
 
 local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequestUnderCursor' }
 
@@ -68,25 +70,88 @@ function M.run_request_under_cursor()
     return
   end
 
-  local text = vim.treesitter.get_node_text(req, 0)
   local bufnr = vim.api.nvim_get_current_buf()
   local start_row, start_col, end_row, end_col = req:range()
 
   core.flash_request(bufnr, start_row, start_col, end_row, end_col)
 
+  local parsed = parser.parse_request(req, bufnr)
+  if not parsed then
+    vim.notify('Failed to parse request', vim.log.levels.ERROR)
+    return
+  end
+
   window.open()
   window.clear()
-  window.set_lines {
-    '# Parsed Request',
-    '---',
+
+  -- Show request summary
+  local lines = {
+    '# Request',
+    parsed.method .. ' ' .. parsed.url,
     '',
-    text,
-    '',
-    '---',
-    'HTTP execution not yet implemented.',
   }
 
-  -- TODO: next step - parse the request and execute with client.lua
+  if parsed.body then
+    table.insert(lines, 'Body:')
+    for body_line in (parsed.body .. '\n'):gmatch '([^\n]*)\n' do
+      table.insert(lines, body_line)
+    end
+    table.insert(lines, '')
+  end
+
+  table.insert(lines, '---')
+  table.insert(lines, '')
+  table.insert(lines, '# Verbose Output')
+  table.insert(lines, '---')
+  table.insert(lines, '')
+
+  window.set_lines(lines)
+
+  notifier.start('Running ' .. parsed.method .. ' ' .. parsed.url)
+
+  client.send(
+    parsed.url,
+    parsed.method,
+    parsed.headers,
+    parsed.body,
+    nil, -- on_stdout_chunk (we collect body at the end)
+    function(line)
+      -- on_stderr_chunk - stream verbose output live
+      vim.schedule(function()
+        window.append_lines { line }
+      end)
+    end,
+    function(result)
+      vim.schedule(function()
+        notifier.stop('Done! Status: ' .. result.status)
+
+        local result_lines = {
+          '',
+          '---',
+          '',
+          '# Response',
+          'Status: ' .. result.status,
+          '',
+          '## Response Headers',
+        }
+
+        for name, value in pairs(result.response_headers) do
+          table.insert(result_lines, name .. ': ' .. value)
+        end
+
+        table.insert(result_lines, '')
+        table.insert(result_lines, '## Body')
+        table.insert(result_lines, '')
+
+        -- Add body lines
+        for body_line in (result.body .. '\n'):gmatch '([^\n]*)\n' do
+          table.insert(result_lines, body_line)
+        end
+
+        window.append_lines(result_lines)
+      end)
+    end
+  )
 end
 
 return M

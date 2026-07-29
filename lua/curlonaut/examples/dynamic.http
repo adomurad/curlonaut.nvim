@@ -1,0 +1,40 @@
+@baseUrl = http://localhost:3000/api
+
+### all dynamic variables in one request
+
+POST {{baseUrl}}/echo
+Content-Type: application/json
+
+{
+  "uuid": "{{$uuid}}",
+  "guid": "{{$guid}}",
+  "timestamp": {{$timestamp}},
+  "timestampMs": {{$timestampMs}},
+  "isoTimestamp": "{{$isoTimestamp}}",
+  "randomInt": {{$randomInt}},
+  "randomIntRange": {{$randomInt 1 100}},
+  "randomFloat": {{$randomFloat}},
+  "randomFloatRange": {{$randomFloat 0 100}},
+  "randomBool": {{$randomBool}},
+  "randomHex": "{{$randomHex}}",
+  "randomHex32": "{{$randomHex 32}}",
+  "date": "{{$date}}",
+  "dateTime": "{{$date %Y-%m-%d %H:%M:%S}}",
+  "timeOnly": "{{$date %H:%M}}",
+  "secondUuid": "{{$uuid}}"
+}
+
+### reuse same dynamic value via inline variable
+
+@my_uuid = {{$uuid}}
+@my_timestamp = {{$timestamp}}
+
+POST {{baseUrl}}/echo
+Content-Type: application/json
+
+{
+  "id": "{{my_uuid}}",
+  "sameId": "{{my_uuid}}",
+  "createdAt": {{my_timestamp}},
+  "sameCreatedAt": {{my_timestamp}}
+}

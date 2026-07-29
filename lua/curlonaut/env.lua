@@ -1,5 +1,7 @@
 local M = {}
 
+local dynamic_vars = require 'curlonaut.dynamic_vars'
+
 -- Session-scoped variables populated by response extractors.
 M.session_vars = {}
 
@@ -106,9 +108,11 @@ function M.build_env_table(bufnr)
   end
 
   -- High priority: inline @variable declarations in the .http file
+  -- Resolve dynamic variables in the declaration so that
+  -- @my_uuid = {{$uuid}} stores the concrete UUID, not the template.
   local inline = M.get_inline_vars(bufnr)
   for k, v in pairs(inline) do
-    env[k] = v
+    env[k] = dynamic_vars.substitute(v)
   end
 
   -- Highest priority: session vars from response extractors
@@ -125,6 +129,7 @@ end
 ---@param env_table table<string, string>
 ---@return string
 function M.substitute(text, env_table)
+  -- 1. Static variables: {{VAR_NAME}}
   local result = text:gsub('{{([A-Za-z_][A-Za-z0-9_]*)}}', function(var)
     local val = env_table[var]
     if val == nil or val == '' then
@@ -138,6 +143,10 @@ function M.substitute(text, env_table)
     end
     return val
   end)
+
+  -- 2. Dynamic variables: {{$name}} or {{$name arg1 arg2}}
+  result = dynamic_vars.substitute(result)
+
   return result
 end
 

@@ -190,6 +190,49 @@ Variable resolution priority (highest first):
 
 Use `{{VAR_NAME}}` anywhere in the URL, headers, or body.
 
+## Dynamic Variables
+
+Built-in dynamic variables generate fresh values on every occurrence. Use the same syntax with a `$` prefix:
+
+```http
+POST {{base_url}}/events
+Content-Type: application/json
+
+{
+  "id": "{{$uuid}}",
+  "createdAt": "{{$isoTimestamp}}",
+  "age": {{$randomInt 18 99}},
+  "score": {{$randomFloat 0 100}},
+  "active": {{$randomBool}},
+  "nonce": "{{$randomHex 32}}",
+  "today": "{{$date %Y-%m-%d}}"
+}
+```
+
+| Variable | Description | Example output |
+|---|---|---|
+| `{{$uuid}}` / `{{$guid}}` | UUID v4 | `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d` |
+| `{{$timestamp}}` | Unix epoch seconds | `1751270400` |
+| `{{$timestampMs}}` | Unix epoch milliseconds | `1751270400000` |
+| `{{$isoTimestamp}}` | ISO 8601 UTC datetime | `2025-06-30T12:00:00Z` |
+| `{{$randomInt}}` | Random integer 0–1000 | `42` |
+| `{{$randomInt min max}}` | Random integer in range | `{{$randomInt 1 100}}` |
+| `{{$randomFloat}}` | Random float 0.0–1.0 | `0.739` |
+| `{{$randomFloat min max}}` | Random float in range | `{{$randomFloat 0 100}}` |
+| `{{$randomBool}}` | `true` or `false` | `true` |
+| `{{$randomHex}}` | 16 random hex chars | `a3f7b2e1c8d40965` |
+| `{{$randomHex n}}` | `n` random hex chars | `{{$randomHex 32}}` |
+| `{{$date}}` | Today (`%Y-%m-%d`) | `2025-06-30` |
+| `{{$date fmt}}` | Formatted with `os.date` | `{{$date %H:%M}}` |
+
+> **Tip:** If you need the *same* dynamic value in multiple places, assign it to an inline variable first:
+> ```http
+> @my_uuid = {{$uuid}}
+> ```
+> Then use `{{my_uuid}}` wherever needed.
+>
+> **Note on syntax highlighting:** `{{VAR}}` and `{{$VAR}}` inside JSON bodies without surrounding quotes may briefly break treesitter highlighting in the `.http` buffer. This is an upstream limitation of the `tree-sitter-http` parser (it injects the raw body text into the JSON parser, which sees templates as invalid syntax). The request still runs correctly — only the editor's syntax coloring is affected. Placing templates inside strings avoids the issue.
+
 ## Health Check
 
 Run `:checkhealth curlonaut` to verify dependencies.

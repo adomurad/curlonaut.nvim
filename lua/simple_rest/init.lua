@@ -6,6 +6,7 @@ local core = require 'simple_rest.core'
 local parser = require 'simple_rest.parser'
 local client = require 'simple_rest.client'
 local formatter = require 'simple_rest.formatter'
+local env = require 'simple_rest.env'
 
 --[[
   Config example:
@@ -102,6 +103,16 @@ function M.run_request_under_cursor()
   if not parsed then
     vim.notify('Failed to parse request', vim.log.levels.ERROR)
     return
+  end
+
+  -- Load env and substitute variables in URL, headers, and body
+  local env_table = env.build_env_table(bufnr)
+  parsed.url = env.substitute(parsed.url, env_table)
+  for key, value in pairs(parsed.headers) do
+    parsed.headers[key] = env.substitute(value, env_table)
+  end
+  if parsed.body then
+    parsed.body = env.substitute(parsed.body, env_table)
   end
 
   -- Open results window if closed; if already open, stay on current tab

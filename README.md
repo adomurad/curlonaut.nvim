@@ -65,6 +65,32 @@ Content-Type: application/json
 }
 ```
 
+### URL-encoded body
+
+```http
+POST {{base_url}}/login
+Content-Type: application/x-www-form-urlencoded
+
+username=john
+&password=secret
+&age=30
+```
+
+Formatting newlines before `&` and at the end of the body are stripped automatically.
+
+### Multipart / File upload
+
+```http
+POST {{base_url}}/upload
+Content-Type: multipart/form-data
+
+description=hello
+avatar=< ./avatar.png
+report=< ./report.pdf;type=application/pdf
+```
+
+Use `< ./path` for file uploads. Append `;type=mime/type` to override the MIME type.
+
 ## Environment Variables
 
 Variable resolution priority (highest first):

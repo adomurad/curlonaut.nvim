@@ -8,9 +8,13 @@ GET {{baseUrl}}/json
 
 GET {{baseUrl}}/html
 
-### XMN response body
+### XML response body
 
 GET {{baseUrl}}/xml
+
+### plain text response body
+
+GET {{baseUrl}}/text
 
 ### application/json request body
 

@@ -18,10 +18,20 @@ GET {{baseUrl}}/text
 
 ### query params
 
-POST {{baseUrl}}/accept-urlencoded
-?username=john
-# &password=
-&age=30
+GET {{baseUrl}}/echo
+ ?username=john
+ &password=pass
+ &age=30
+
+### query params - omit
+
+@t5={{$omit}}
+# @t5=wowowowo
+
+GET {{baseUrl}}/echo
+ ?username=john
+ &password={{t5}}
+ &age=30
 
 ### application/json request body
 

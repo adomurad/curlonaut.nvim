@@ -110,6 +110,21 @@ username=john
 
 Sent body becomes `username=john&age=30` (the `password` pair is removed).
 
+`{{$omit}}` also works in query strings and multipart fields:
+
+```http
+GET {{base_url}}/users?active={{$omit}}&limit=10
+```
+
+```http
+POST {{base_url}}/upload
+Content-Type: multipart/form-data
+
+description=hello
+avatar={{$omit}}
+report=< ./report.pdf;type=application/pdf
+```
+
 ### Multipart / File upload
 
 ```http

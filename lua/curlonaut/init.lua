@@ -162,6 +162,36 @@ end
 
 local dynamic_vars = require 'curlonaut.dynamic_vars'
 
+---Strip query parameters whose value equals the OMIT_SENTINEL.
+---@param url string
+---@param sentinel string
+---@return string
+local function filter_query_string_omit(url, sentinel)
+  local q_pos = url:find('?')
+  if not q_pos then
+    return url
+  end
+  local base = url:sub(1, q_pos)
+  local query = url:sub(q_pos + 1)
+  local kept = {}
+  for part in query:gmatch('[^&]+') do
+    local eq_pos = part:find('=')
+    if eq_pos then
+      local value = part:sub(eq_pos + 1)
+      if value ~= sentinel then
+        table.insert(kept, part)
+      end
+    else
+      table.insert(kept, part)
+    end
+  end
+  local result = table.concat(kept, '&')
+  if result == '' then
+    return url:sub(1, q_pos - 1)
+  end
+  return base .. result
+end
+
 ---Strip key=value pairs whose value equals the OMIT_SENTINEL from a urlencoded body.
 ---@param body string|nil
 ---@param sentinel string
@@ -248,6 +278,7 @@ local function prepare_request()
 
   -- Apply {{$omit}} filtering after all variable substitution is done.
   local sentinel = dynamic_vars.OMIT_SENTINEL
+  parsed.url = filter_query_string_omit(parsed.url, sentinel)
   if parsed.body then
     parsed.body = filter_urlencoded_body_omit(parsed.body, sentinel)
   end

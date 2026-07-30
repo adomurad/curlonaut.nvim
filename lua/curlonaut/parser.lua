@@ -123,7 +123,7 @@ function M.parse_request(request_node, bufnr)
   end
 
   local method = get_text(method_node, bufnr):upper()
-  local url = get_text(url_node, bufnr)
+  local url = get_text(url_node, bufnr):gsub('[\r\n]+%s*', '')
 
   local headers = {}
   local header_nodes = get_children(request_node, 'header')

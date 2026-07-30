@@ -1,5 +1,9 @@
 local M = {}
 
+-- Sentinel value returned by the `omit` provider so that curlonaut can strip
+-- the entire key=value pair from urlencoded / multipart bodies and query strings.
+M.OMIT_SENTINEL = '__curlonaut_omit__'
+
 -- Seed math.random once for LuaJIT / Lua 5.1 compatibility.
 math.randomseed(os.time())
 
@@ -95,6 +99,10 @@ M.providers = {
       fmt = '%Y-%m-%d'
     end
     return os.date(fmt) or ''
+  end,
+
+  omit = function(_)
+    return M.OMIT_SENTINEL
   end,
 }
 

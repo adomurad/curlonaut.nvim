@@ -160,6 +160,55 @@ function M.goto_prev_request()
   core.goto_request(0, 'prev', vim.v.count1)
 end
 
+local dynamic_vars = require 'curlonaut.dynamic_vars'
+
+---Strip key=value pairs whose value equals the OMIT_SENTINEL from a urlencoded body.
+---@param body string|nil
+---@param sentinel string
+---@return string|nil
+local function filter_urlencoded_body_omit(body, sentinel)
+  if not body then
+    return nil
+  end
+  local kept = {}
+  for part in body:gmatch('[^&]+') do
+    local eq_pos = part:find('=')
+    if eq_pos then
+      local value = part:sub(eq_pos + 1)
+      if value ~= sentinel then
+        table.insert(kept, part)
+      end
+    else
+      table.insert(kept, part)
+    end
+  end
+  local result = table.concat(kept, '&')
+  if result == '' then
+    return nil
+  end
+  return result
+end
+
+---Remove multipart form fields whose value equals the OMIT_SENTINEL.
+---@param fields table[]|nil
+---@param sentinel string
+---@return table[]|nil
+local function filter_form_fields_omit(fields, sentinel)
+  if not fields then
+    return nil
+  end
+  local kept = {}
+  for _, field in ipairs(fields) do
+    if field.value ~= sentinel then
+      table.insert(kept, field)
+    end
+  end
+  if #kept == 0 then
+    return nil
+  end
+  return kept
+end
+
 ---Parse the request under the cursor and apply variable substitution.
 ---Returns the processed parsed request, or nil if parsing fails.
 ---@return SimpleRestParsedRequest|nil
@@ -195,6 +244,15 @@ local function prepare_request()
         field.file = env.substitute(field.file, env_table)
       end
     end
+  end
+
+  -- Apply {{$omit}} filtering after all variable substitution is done.
+  local sentinel = dynamic_vars.OMIT_SENTINEL
+  if parsed.body then
+    parsed.body = filter_urlencoded_body_omit(parsed.body, sentinel)
+  end
+  if parsed.form_fields then
+    parsed.form_fields = filter_form_fields_omit(parsed.form_fields, sentinel)
   end
 
   -- Merge file-level and per-request curl flags (per-request wins on conflicts)

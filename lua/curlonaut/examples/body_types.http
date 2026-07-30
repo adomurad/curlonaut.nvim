@@ -16,6 +16,13 @@ GET {{baseUrl}}/xml
 
 GET {{baseUrl}}/text
 
+### query params
+
+POST {{baseUrl}}/accept-urlencoded
+?username=john
+# &password=
+&age=30
+
 ### application/json request body
 
 POST {{baseUrl}}/accept-json
@@ -45,6 +52,15 @@ username=john
 &password=secret
 &age=30
 
+### www-urlencoded request body - omit a field
+
+POST {{baseUrl}}/accept-urlencoded
+Content-Type: application/x-www-form-urlencoded
+
+username=john
+&password={{$omit}}
+&age=30
+
 ### multipart request body
 
 POST {{baseUrl}}/accept-multipart
@@ -71,4 +87,13 @@ Content-Type: multipart/form-data
 username=john
 password=secret
 file=< ./fakefakefile.http
+
+### multipart request body - omit a field
+
+POST {{baseUrl}}/accept-multipart
+Content-Type: multipart/form-data
+
+username=john
+password={{$omit}}
+file=< ./env.http
 

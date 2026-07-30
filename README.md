@@ -97,6 +97,19 @@ username=john
 
 Formatting newlines before `&` and at the end of the body are stripped automatically.
 
+Use `{{$omit}}` as a value to drop a field entirely before sending:
+
+```http
+POST {{base_url}}/login
+Content-Type: application/x-www-form-urlencoded
+
+username=john
+&password={{$omit}}
+&age=30
+```
+
+Sent body becomes `username=john&age=30` (the `password` pair is removed).
+
 ### Multipart / File upload
 
 ```http
@@ -226,6 +239,7 @@ Content-Type: application/json
 | `{{$randomHex n}}` | `n` random hex chars | `{{$randomHex 32}}` |
 | `{{$date}}` | Today (`%Y-%m-%d`) | `2025-06-30` |
 | `{{$date fmt}}` | Formatted with `os.date` | `{{$date %H:%M}}` |
+| `{{$omit}}` | Omit this field from urlencoded/multipart body | — |
 
 > **Tip:** If you need the *same* dynamic value in multiple places, assign it to an inline variable first:
 > ```http

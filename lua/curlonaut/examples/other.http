@@ -8,3 +8,11 @@ GET {{baseUrl}}/wait?timeout=5000
 ### Timeouts - looong
 
 GET {{baseUrl}}/wait?timeout=50000
+
+### Vars of Vars
+
+@a=5
+@b={{a}}
+@c={{b}}
+
+GET {{baseUrl}}/echo?param={{c}}

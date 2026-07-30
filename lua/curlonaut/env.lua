@@ -125,24 +125,49 @@ end
 
 ---Replace `{{VAR}}` placeholders in text with values from env_table.
 ---Warns if a variable is not found or empty and substitutes an empty string.
+---Recursively resolves variables up to a max depth to support vars-of-vars.
 ---@param text string
 ---@param env_table table<string, string>
 ---@return string
 function M.substitute(text, env_table)
-  -- 1. Static variables: {{VAR_NAME}}
-  local result = text:gsub('{{([A-Za-z_][A-Za-z0-9_]*)}}', function(var)
-    local val = env_table[var]
-    if val == nil or val == '' then
+  local result = text
+  local max_depth = 10
+  local warned_vars = {}
+
+  -- 1. Recursively resolve static variables {{VAR_NAME}}
+  for depth = 1, max_depth do
+    local changed = false
+    local new_result = result:gsub('{{([A-Za-z_][A-Za-z0-9_]*)}}', function(var)
+      local val = env_table[var]
+      if val == nil or val == '' then
+        if not warned_vars[var] then
+          warned_vars[var] = true
+          vim.schedule(function()
+            vim.notify(
+              '[curlonaut] Missing env variable: ' .. var,
+              vim.log.levels.WARN
+            )
+          end)
+        end
+        return ''
+      end
+      changed = true
+      return val
+    end)
+    result = new_result
+    if not changed then
+      break
+    end
+    if depth == max_depth and result:match('{{[A-Za-z_][A-Za-z0-9_]*}}') then
       vim.schedule(function()
         vim.notify(
-          '[curlonaut] Missing env variable: ' .. var,
+          '[curlonaut] Possible circular reference in variables (max depth ' .. max_depth .. ' reached)',
           vim.log.levels.WARN
         )
       end)
-      return ''
+      break
     end
-    return val
-  end)
+  end
 
   -- 2. Dynamic variables: {{$name}} or {{$name arg1 arg2}}
   result = dynamic_vars.substitute(result)

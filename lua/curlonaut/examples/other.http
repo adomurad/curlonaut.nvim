@@ -16,3 +16,15 @@ GET {{baseUrl}}/wait?timeout=50000
 @c={{b}}
 
 GET {{baseUrl}}/echo?param={{c}}
+
+### STATUS - 400
+
+GET {{baseUrl}}/status?code=400
+
+### STATUS - 500
+
+GET {{baseUrl}}/status?code=500
+
+### image
+
+GET {{baseUrl}}/png

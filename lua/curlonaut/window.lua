@@ -103,6 +103,9 @@ function M.is_open()
   return get_results_win() ~= -1
 end
 
+---@type string|nil
+local winbar_extra = nil
+
 ---Build the winbar string showing tabs.
 ---@param current_tab string
 ---@return string
@@ -115,7 +118,11 @@ local function build_winbar(current_tab)
       table.insert(parts, '%#TabLine# ' .. tab:gsub('^%l', string.upper) .. ' ')
     end
   end
-  return table.concat(parts, '')
+  local bar = table.concat(parts, '')
+  if winbar_extra then
+    bar = bar .. '%=' .. winbar_extra
+  end
+  return bar
 end
 
 ---Update the winbar on a window.
@@ -192,6 +199,19 @@ function M.refresh_winbar()
   if win ~= -1 then
     set_winbar(win, active_tab)
   end
+end
+
+---Set right-aligned text in the winbar while a request is active.
+---@param text string
+function M.set_winbar_extra(text)
+  winbar_extra = text
+  M.refresh_winbar()
+end
+
+---Clear the right-aligned winbar text.
+function M.clear_winbar_extra()
+  winbar_extra = nil
+  M.refresh_winbar()
 end
 
 ---Switch to the next or previous tab.
@@ -279,6 +299,19 @@ function M.highlight_tab(tab_name, content_type)
   elseif tab_name ~= 'curl' then
     highlighter.highlight_buffer(buf)
   end
+end
+
+---Update a single line in a tab buffer.
+---@param tab_name string
+---@param lnum integer 0-based line number
+---@param text string
+function M.update_tab_line(tab_name, lnum, text)
+  local buf = get_or_create_buf(tab_name)
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  if lnum < 0 or lnum >= line_count then
+    return
+  end
+  vim.api.nvim_buf_set_lines(buf, lnum, lnum + 1, false, { text })
 end
 
 return M

@@ -29,6 +29,52 @@ M.config = {
 
 local valid_args = { 'Open', 'Close', 'Toggle', 'RunRequest', 'CopyCurl', 'CancelRequest', 'ClearCookies', 'EditCookies' }
 
+-- Live progress state
+local spinner_chars = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
+local progress_timer = nil
+local progress_spinner_lines = {}
+local request_generation = 0
+
+local function stop_progress_timer(gen)
+  if gen ~= request_generation then
+    return
+  end
+  if progress_timer and progress_timer:is_active() then
+    progress_timer:stop()
+  end
+  progress_timer = nil
+  progress_spinner_lines = {}
+  window.clear_winbar_extra()
+end
+
+local function start_progress_timer(gen)
+  if gen ~= request_generation then
+    return
+  end
+  local spinner_idx = 1
+  local start_ms = vim.loop.now()
+  progress_timer = vim.loop.new_timer()
+  progress_timer:start(
+    100,
+    100,
+    vim.schedule_wrap(function()
+      if gen ~= request_generation then
+        return
+      end
+      spinner_idx = (spinner_idx % #spinner_chars) + 1
+      local elapsed = (vim.loop.now() - start_ms) / 1000
+      local text = string.format('%s %.2fs', spinner_chars[spinner_idx], elapsed)
+      if progress_spinner_lines.simple then
+        window.update_tab_line('simple', progress_spinner_lines.simple, text)
+      end
+      if progress_spinner_lines.full then
+        window.update_tab_line('full', progress_spinner_lines.full, text)
+      end
+      window.set_winbar_extra(text)
+    end)
+  )
+end
+
 ---@param arg_lead string
 ---@param cmd_line string
 ---@param cursor_pos integer
@@ -343,6 +389,15 @@ function M.run_request()
     notifier.stop('Previous request cancelled')
   end
 
+  -- Stop any existing progress timer before starting a new one
+  if progress_timer and progress_timer:is_active() then
+    progress_timer:stop()
+  end
+  progress_timer = nil
+
+  request_generation = request_generation + 1
+  local current_gen = request_generation
+
   local bufnr = vim.api.nvim_get_current_buf()
 
   if not validate_multipart_files(parsed, bufnr) then
@@ -380,29 +435,36 @@ function M.run_request()
   window.clear_tab 'curl'
   window.clear_tab 'cookies'
 
-  -- Simple tab: placeholder until request completes
-  window.set_tab_lines('simple', {
+  -- Simple tab: placeholder with live progress line
+  local simple_lines = {
     '# Request',
     parsed.method .. ' ' .. parsed.url,
     '',
-    '...',
-  })
+    '# Response',
+    '',
+  }
+  progress_spinner_lines.simple = #simple_lines -- 0-based index of the line we are about to insert
+  table.insert(simple_lines, '⠋ In progress... 0.00s')
+  window.set_tab_lines('simple', simple_lines)
 
   -- Full tab: placeholder with request info upfront
-  local full_placeholder = {
+  local full_lines = {
     '# Request',
     parsed.method .. ' ' .. parsed.url,
     '',
   }
   if next(parsed.headers) then
-    table.insert(full_placeholder, '## Headers')
+    table.insert(full_lines, '## Headers')
     for name, value in pairs(parsed.headers) do
-      table.insert(full_placeholder, name .. ': ' .. value)
+      table.insert(full_lines, name .. ': ' .. value)
     end
-    table.insert(full_placeholder, '')
+    table.insert(full_lines, '')
   end
-  table.insert(full_placeholder, '...')
-  window.set_tab_lines('full', full_placeholder)
+  table.insert(full_lines, '# Response')
+  table.insert(full_lines, '')
+  progress_spinner_lines.full = #full_lines
+  table.insert(full_lines, '⠋ In progress... 0.00s')
+  window.set_tab_lines('full', full_lines)
 
   -- Verbose tab: header only (content streams in live)
   window.set_tab_lines('verbose', { '# Verbose Output', '' })
@@ -410,7 +472,7 @@ function M.run_request()
   -- Curl tab: ready-to-copy command
   window.set_tab_lines('curl', curl_lines)
 
-  notifier.start('Running ' .. parsed.method .. ' ' .. parsed.url)
+  start_progress_timer(current_gen)
 
   client.send(
     parsed.url,
@@ -429,9 +491,14 @@ function M.run_request()
     end,
     function(result)
       vim.schedule(function()
+        stop_progress_timer(current_gen)
+
+        if current_gen ~= request_generation then
+          return
+        end
+
         if not result then
-          -- Cancelled — UI already updated by cancel_request(), just stop highlighting
-          window.highlight_tab 'verbose'
+          -- Cancelled — UI already updated by cancel_request()
           return
         end
 

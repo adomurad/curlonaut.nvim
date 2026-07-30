@@ -221,6 +221,10 @@ function M.highlight_cookies_buffer(bufnr)
     if line:match '^# Cookie' then
       vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = line_len, hl_group = 'Title' })
 
+    -- Help text in parentheses → Comment
+    elseif line:match '^%(' then
+      vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = line_len, hl_group = 'Comment' })
+
     -- --- separator → Comment
     elseif line:match '^%-%-%-' then
       vim.api.nvim_buf_set_extmark(bufnr, hl_ns, row, 0, { end_col = line_len, hl_group = 'Comment' })

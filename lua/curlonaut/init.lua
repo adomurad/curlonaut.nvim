@@ -172,7 +172,7 @@ function M.clear_cookies()
   if cookies.clear_jar(bufnr) then
     vim.notify('[curlonaut] Cookie jar cleared', vim.log.levels.INFO)
     window.clear_tab 'cookies'
-    window.set_tab_lines('cookies', { '# Cookie Jar', '', '(cleared)' })
+    window.set_tab_lines('cookies', { '# Cookie Jar', '', '(D = clear, e = edit)', '', '(cleared)' })
   else
     vim.notify('[curlonaut] No cookie jar for this buffer', vim.log.levels.WARN)
   end

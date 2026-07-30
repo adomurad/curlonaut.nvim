@@ -94,10 +94,10 @@ end
 -- @return string[]
 function M.format_cookies(cookies)
   if #cookies == 0 then
-    return { '# Cookie Jar', '', '(empty)' }
+    return { '# Cookie Jar', '(D = clear, e = edit)', '', '(empty)' }
   end
 
-  local lines = { '# Cookie Jar', '' }
+  local lines = { '# Cookie Jar', '(D = clear, e = edit)', '' }
   for _, c in ipairs(cookies) do
     table.insert(lines, '---')
     table.insert(lines, 'Domain:   ' .. c.domain)

@@ -84,6 +84,19 @@ Content-Type: application/json
 }
 ```
 
+### Multiline URLs
+
+Long URLs and query strings can be split across multiple lines. Whitespace after a line break is removed, so parameters line up neatly:
+
+```http
+GET {{base_url}}/search
+  ?q=neovim
+  &limit=10
+  &offset=0
+```
+
+The above is sent as `GET {{base_url}}/search?q=neovim&limit=10&offset=0`.
+
 ### URL-encoded body
 
 ```http

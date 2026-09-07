@@ -24,6 +24,25 @@ Content-Type: application/json
   "secondUuid": "{{$uuid}}"
 }
 
+### base64 encode credentials (basic auth)
+
+# good answer "{\n  \"fromEnvVar\": \"dXNlcjpwYXNz\",\n  
+# \"fromLiteral\": \"dXNlcjpwYXNz\",\n  \"fromVars\": \"YWxpY2U6czNjcmV0\"\n}\n\n": ""
+
+@my_creds = user:pass
+@my_user = alice
+@my_pass = s3cret
+
+POST {{baseUrl}}/echo
+Authorization: Basic {{$base64 my_creds}}
+
+{
+  "fromEnvVar": "{{$base64 my_creds}}",
+  "fromLiteral": "{{$base64 user:pass}}",
+  "fromVars": "{{$base64 {{my_user}}:{{my_pass}}}}"
+}
+
+
 ### reuse same dynamic value via inline variable
 
 @my_uuid = {{$uuid}}

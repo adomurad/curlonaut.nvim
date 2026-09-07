@@ -112,7 +112,7 @@ function M.build_env_table(bufnr)
   -- @my_uuid = {{$uuid}} stores the concrete UUID, not the template.
   local inline = M.get_inline_vars(bufnr)
   for k, v in pairs(inline) do
-    env[k] = dynamic_vars.substitute(v)
+    env[k] = dynamic_vars.substitute(v, env)
   end
 
   -- Highest priority: session vars from response extractors
@@ -170,7 +170,7 @@ function M.substitute(text, env_table)
   end
 
   -- 2. Dynamic variables: {{$name}} or {{$name arg1 arg2}}
-  result = dynamic_vars.substitute(result)
+  result = dynamic_vars.substitute(result, env_table)
 
   return result
 end

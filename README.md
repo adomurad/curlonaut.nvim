@@ -267,7 +267,21 @@ Content-Type: application/json
 | `{{$randomHex n}}` | `n` random hex chars | `{{$randomHex 32}}` |
 | `{{$date}}` | Today (`%Y-%m-%d`) | `2025-06-30` |
 | `{{$date fmt}}` | Formatted with `os.date` | `{{$date %H:%M}}` |
+| `{{$base64 value}}` | Base64-encode an env variable name or literal text (requires Neovim 0.10+) | `{{$base64 MY_CREDS}}` where `MY_CREDS = user:pass` → `dXNlcjpwYXNz` |
 | `{{$omit}}` | Omit this field from urlencoded/multipart body | — |
+
+Basic auth is the main use case — the first argument is looked up as an env variable first (inline `@var`, `.env` file, shell), falling back to treating it as literal text:
+
+```http
+GET {{base_url}}/secure
+Authorization: Basic {{$base64 MY_CREDS}}
+```
+
+```http
+# equivalent, using a literal
+GET {{base_url}}/secure
+Authorization: Basic {{$base64 user:pass}}
+```
 
 > **Tip:** If you need the *same* dynamic value in multiple places, assign it to an inline variable first:
 > ```http

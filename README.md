@@ -65,7 +65,7 @@ The results panel has five tabs: **Simple** (response only), **Full** (request +
 
 ## .http File Format
 
-```http
+```sh
 # @env-file ./.env.local
 
 @base_url = https://api.example.com
@@ -88,7 +88,7 @@ Content-Type: application/json
 
 Long URLs and query strings can be split across multiple lines. Whitespace after a line break is removed, so parameters line up neatly:
 
-```http
+```sh
 GET {{base_url}}/search
   ?q=neovim
   &limit=10
@@ -99,7 +99,7 @@ The above is sent as `GET {{base_url}}/search?q=neovim&limit=10&offset=0`.
 
 ### URL-encoded body
 
-```http
+```sh
 POST {{base_url}}/login
 Content-Type: application/x-www-form-urlencoded
 
@@ -112,7 +112,7 @@ Formatting newlines before `&` and at the end of the body are stripped automatic
 
 Use `{{$omit}}` as a value to drop a field entirely before sending:
 
-```http
+```sh
 POST {{base_url}}/login
 Content-Type: application/x-www-form-urlencoded
 
@@ -125,11 +125,11 @@ Sent body becomes `username=john&age=30` (the `password` pair is removed).
 
 `{{$omit}}` also works in query strings and multipart fields:
 
-```http
+```sh
 GET {{base_url}}/users?active={{$omit}}&limit=10
 ```
 
-```http
+```sh
 POST {{base_url}}/upload
 Content-Type: multipart/form-data
 
@@ -140,7 +140,7 @@ report=< ./report.pdf;type=application/pdf
 
 ### Multipart / File upload
 
-```http
+```sh
 POST {{base_url}}/upload
 Content-Type: multipart/form-data
 
@@ -155,7 +155,7 @@ Use `< ./path` for file uploads. Append `;type=mime/type` to override the MIME t
 
 After a request completes you can pull values from the response body or headers and save them as session-scoped variables for later requests.
 
-```http
+```sh
 POST {{base_url}}/login
 Content-Type: application/json
 
@@ -180,7 +180,7 @@ Pass arbitrary curl flags per-file (applies to all requests) or per-request. Fla
 
 **Per-file** — place before the first request:
 
-```http
+```sh
 # @curl --insecure
 # @curl --connect-timeout 5
 
@@ -191,7 +191,7 @@ GET https://localhost/api
 
 **Per-request** — place inside a request block:
 
-```http
+```sh
 ###
 # @curl --max-time 10
 
@@ -204,7 +204,7 @@ File-level flags are applied first, then per-request flags. On conflicts (e.g. t
 
 Enable a per-file cookie jar by adding `# @cookie-jar` before the first request. All requests in the same file then share cookies automatically via curl's native `--cookie` / `--cookie-jar` mechanism.
 
-```http
+```sh
 # @cookie-jar
 
 POST {{base_url}}/login
@@ -237,7 +237,7 @@ Use `{{VAR_NAME}}` anywhere in the URL, headers, or body.
 
 Built-in dynamic variables generate fresh values on every occurrence. Use the same syntax with a `$` prefix:
 
-```http
+```sh
 POST {{base_url}}/events
 Content-Type: application/json
 
@@ -272,19 +272,19 @@ Content-Type: application/json
 
 Basic auth is the main use case — the first argument is looked up as an env variable first (inline `@var`, `.env` file, shell), falling back to treating it as literal text:
 
-```http
+```sh
 GET {{base_url}}/secure
 Authorization: Basic {{$base64 MY_CREDS}}
 ```
 
-```http
+```sh
 # equivalent, using a literal
 GET {{base_url}}/secure
 Authorization: Basic {{$base64 user:pass}}
 ```
 
 > **Tip:** If you need the *same* dynamic value in multiple places, assign it to an inline variable first:
-> ```http
+> ```sh
 > @my_uuid = {{$uuid}}
 > ```
 > Then use `{{my_uuid}}` wherever needed.

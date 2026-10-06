@@ -84,6 +84,23 @@ Content-Type: application/json
 }
 ```
 
+### Comments in a JSON body
+
+JSON bodies (`Content-Type` containing `json`) support whole-line `//` comments. Comment lines are stripped before the request is sent:
+
+```sh
+POST {{base_url}}/users
+Content-Type: application/json
+
+{
+  // this line is removed
+  "name": "Ada",
+  "homepage": "http://example.com/a//b"
+}
+```
+
+Only lines whose first non-whitespace characters are `//` are treated as comments, so `//` inside strings and URLs is preserved. Trailing (inline) comments are not supported, and this applies to JSON bodies only.
+
 ### Multiline URLs
 
 Long URLs and query strings can be split across multiple lines. Whitespace after a line break is removed, so parameters line up neatly:

@@ -44,6 +44,18 @@ Content-Type: application/json
   "bool": true
 }
 
+### application/json request body - with // comments
+
+POST {{baseUrl}}/accept-json
+Content-Type: application/json
+
+{
+  // whole-line comments are stripped before sending
+  "messageInBody": "a // b is preserved",
+  "url": "http://example.com/a//b",
+  "aNumber": 12345
+}
+
 ### www-urlencoded request body
 
 POST {{baseUrl}}/accept-urlencoded

@@ -43,6 +43,33 @@ local function get_text(node, bufnr)
   return vim.treesitter.get_node_text(node, bufnr)
 end
 
+---Remove whole-line `//` comments from a body.
+---A line is dropped only when its first non-whitespace characters are `//`,
+---so `//` inside strings (e.g. "http://x" or "a // b") is preserved.
+---@param text string
+---@return string
+local function strip_line_comments(text)
+  local kept = {}
+  for line in (text .. '\n'):gmatch('([^\r\n]*)\r?\n') do
+    if not line:match('^%s*//') then
+      table.insert(kept, line)
+    end
+  end
+  return table.concat(kept, '\n')
+end
+
+---Return true if any header value indicates a JSON content type.
+---@param headers table<string, string>
+---@return boolean
+local function is_json_content_type(headers)
+  for key, value in pairs(headers) do
+    if key:lower() == 'content-type' and value:lower():find('json', 1, true) then
+      return true
+    end
+  end
+  return false
+end
+
 ---Extract @curl whitespace-split flags from comment children of a node.
 ---@param node TSNode
 ---@param bufnr integer
@@ -144,6 +171,12 @@ function M.parse_request(request_node, bufnr)
       body = get_text(child, bufnr)
       break
     end
+  end
+
+  -- Strip whole-line `//` comments from JSON bodies only. Whole-line matching
+  -- keeps `//` inside string values (e.g. "http://x") intact.
+  if body and is_json_content_type(headers) then
+    body = strip_line_comments(body)
   end
 
   -- Normalize www-form-urlencoded bodies: strip newlines before '&' and all

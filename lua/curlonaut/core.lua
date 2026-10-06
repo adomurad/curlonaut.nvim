@@ -40,7 +40,9 @@ function M.flash_request(bufnr, start_row, start_col, end_row, end_col)
   })
 
   vim.defer_fn(function()
-    vim.api.nvim_buf_clear_namespace(bufnr, flash_ns, 0, -1)
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      vim.api.nvim_buf_clear_namespace(bufnr, flash_ns, 0, -1)
+    end
   end, 200)
 end
 

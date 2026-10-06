@@ -2,13 +2,22 @@
 
 ![curlonaut](assets/curlonaut-1.png)
 
-A rest client for NVIM.
+A REST client for Neovim. Write `.http` / `.rest` files and send the requests
+with `curl` without leaving the editor.
 
-Uses .rest / .http files and curl to send the requests.
+This is a simple project — mainly suited to solve my needs. It is mostly
+***vibed*** — use at your own discretion.
 
-This is a simple project - mainly suited to solve my needs.
+---
 
-It is mostly ***vibed*** - use at your own discretion.
+## Requirements
+
+- Neovim with Lua and the built-in `vim.treesitter` API.
+- [`curl`](https://curl.se/) on your `PATH`.
+- The tree-sitter `http` parser: run `:TSInstall http`.
+- [`plenary.nvim`](https://github.com/nvim-lua/plenary.nvim) (used for the async job).
+
+---
 
 ## Installation
 
@@ -17,6 +26,7 @@ It is mostly ***vibed*** - use at your own discretion.
 ```lua
 {
   'adomurad/curlonaut.nvim',
+  dependencies = { 'nvim-lua/plenary.nvim' },
   ft = { 'http', 'rest' },
   config = function()
     require('curlonaut').setup {
@@ -48,34 +58,115 @@ It is mostly ***vibed*** - use at your own discretion.
 }
 ```
 
+---
+
+## Quick Start
+
+Create a file called `api.http`:
+
+```sh
+@base_url = https://httpbin.org
+
+###
+
+GET {{base_url}}/get
+```
+
+Put your cursor anywhere in the request and run `:Curlonaut RunRequest`. The
+results panel opens on the right. See the [lazy.nvim example](#lazynvim) for
+suggested keymaps.
+
+---
+
 ## Commands
+
+All functionality is exposed through one command with a required argument
+(Tab-completion works):
 
 | Command | Action |
 |---|---|
-| `:Curlonaut Open` | Open the results panel |
-| `:Curlonaut Close` | Close the results panel |
-| `:Curlonaut Toggle` | Toggle the results panel |
-| `:Curlonaut RunRequest` | Execute the request under cursor |
-| `:Curlonaut CancelRequest` | Kill the currently running request (also `<C-c>` in `.http` / results buffers) |
-| `:Curlonaut CopyCurl` | Copy the shell-escaped curl command under cursor to clipboard (does not run) |
-| `:Curlonaut ClearCookies` | Delete the in-memory cookie jar for the current `.http` / `.rest` buffer |
-| `:Curlonaut EditCookies` | Open the raw cookie jar file for the current buffer in an editor buffer |
+| `:Curlonaut Open` | Open the results panel. |
+| `:Curlonaut Close` | Close the results panel. |
+| `:Curlonaut Toggle` | Toggle the results panel. |
+| `:Curlonaut RunRequest` | Execute the request under the cursor. |
+| `:Curlonaut CancelRequest` | Kill the currently running request. |
+| `:Curlonaut CopyCurl` | Copy the shell-safe `curl` command under the cursor to the clipboard (does not run it). |
+| `:Curlonaut ClearCookies` | Delete the cookie jar for the current buffer. |
+| `:Curlonaut EditCookies` | Open the raw cookie jar file for the current buffer in an editor buffer. |
 
-The results panel has five tabs: **Simple** (response only), **Full** (request + response), **Verbose** (live curl stderr), **Curl** (the exact shell-safe curl command used, ready to copy and paste into a terminal), and **Cookies** (current cookie jar contents).
+---
 
-## .http File Format
+## Results Panel
+
+Running a request opens a vertical split on the right showing the output. The
+panel does not steal focus from your `.http` buffer.
+
+### Tabs
+
+Switch tabs with `<S-l>` / `<S-h>` (see [Keymaps](#keymaps)).
+
+| Tab | Contents |
+|---|---|
+| **Simple** | Response only — status, time, headers, and body. |
+| **Full** | Request details plus the full response. |
+| **Verbose** | Live `curl` stderr output, streamed as the request runs. |
+| **Curl** | The exact shell-safe `curl` command used, ready to copy and paste. |
+| **Cookies** | The current cookie jar (only populated when `# @cookie-jar` is active). |
+
+### Keymaps
+
+These are set automatically inside results buffers:
+
+| Key | Action |
+|---|---|
+| `<S-l>` | Next tab. |
+| `<S-h>` | Previous tab. |
+| `<C-c>` | Cancel the running request. |
+| `D` | Clear the cookie jar (Cookies tab only). |
+| `e` | Edit the raw cookie jar file (Cookies tab only). |
+
+> `RunRequest` is not bound by default — bind it yourself (see the
+> [lazy.nvim example](#lazynvim)).
+
+---
+
+## File Format
+
+A `.http` / `.rest` file contains one or more requests separated by `###`
+lines. The request under the cursor is the one that runs.
+
+### Requests and Separators
 
 ```sh
-# @env-file ./.env.local
+### First request
 
-@base_url = https://api.example.com
-
-###
-
-GET {{base_url}}/users
+GET https://httpbin.org/get
 
 ###
 
+### Second request
+
+GET https://httpbin.org/ip
+```
+
+### Headers
+
+Headers are plain `Name: value` lines placed directly under the request line:
+
+```sh
+GET https://httpbin.org/headers
+Accept: application/json
+X-Custom: hello
+```
+
+### Bodies
+
+The body follows the headers, separated by a blank line. How it is interpreted
+depends on the `Content-Type` header.
+
+#### JSON
+
+```sh
 POST {{base_url}}/users
 Content-Type: application/json
 
@@ -84,9 +175,8 @@ Content-Type: application/json
 }
 ```
 
-### Comments in a JSON body
-
-JSON bodies (`Content-Type` containing `json`) support whole-line `//` comments. Comment lines are stripped before the request is sent:
+JSON bodies (`Content-Type` containing `json`) support whole-line `//` comments.
+Comment lines are stripped before the request is sent:
 
 ```sh
 POST {{base_url}}/users
@@ -99,22 +189,11 @@ Content-Type: application/json
 }
 ```
 
-Only lines whose first non-whitespace characters are `//` are treated as comments, so `//` inside strings and URLs is preserved. Trailing (inline) comments are not supported, and this applies to JSON bodies only.
+Only lines whose first non-whitespace characters are `//` are treated as
+comments, so `//` inside strings and URLs is preserved. Trailing (inline)
+comments are not supported, and this applies to JSON bodies only.
 
-### Multiline URLs
-
-Long URLs and query strings can be split across multiple lines. Whitespace after a line break is removed, so parameters line up neatly:
-
-```sh
-GET {{base_url}}/search
-  ?q=neovim
-  &limit=10
-  &offset=0
-```
-
-The above is sent as `GET {{base_url}}/search?q=neovim&limit=10&offset=0`.
-
-### URL-encoded body
+#### URL-encoded
 
 ```sh
 POST {{base_url}}/login
@@ -125,7 +204,8 @@ username=john
 &age=30
 ```
 
-Formatting newlines before `&` and at the end of the body are stripped automatically.
+Formatting newlines before `&` and at the end of the body are stripped
+automatically.
 
 Use `{{$omit}}` as a value to drop a field entirely before sending:
 
@@ -139,23 +219,10 @@ username=john
 ```
 
 Sent body becomes `username=john&age=30` (the `password` pair is removed).
+`{{$omit}}` also works in query strings and multipart fields — see
+[Dynamic Variables](#dynamic-variables).
 
-`{{$omit}}` also works in query strings and multipart fields:
-
-```sh
-GET {{base_url}}/users?active={{$omit}}&limit=10
-```
-
-```sh
-POST {{base_url}}/upload
-Content-Type: multipart/form-data
-
-description=hello
-avatar={{$omit}}
-report=< ./report.pdf;type=application/pdf
-```
-
-### Multipart / File upload
+#### Multipart and File Upload
 
 ```sh
 POST {{base_url}}/upload
@@ -166,34 +233,51 @@ avatar=< ./avatar.png
 report=< ./report.pdf;type=application/pdf
 ```
 
-Use `< ./path` for file uploads. Append `;type=mime/type` to override the MIME type.
+Use `< ./path` for file uploads. Append `;type=mime/type` to override the MIME
+type. Relative paths are resolved against the `.http` file's directory.
 
-### Response extractors
+### Multiline URLs
 
-After a request completes you can pull values from the response body or headers and save them as session-scoped variables for later requests.
+Long URLs and query strings can be split across multiple lines. Whitespace
+after a line break is removed, so parameters line up neatly:
 
 ```sh
-POST {{base_url}}/login
-Content-Type: application/json
-
-{
-  "username": "admin",
-  "password": "secret"
-}
-
-@ACCESS_TOKEN = @response.body.token
-@REQUEST_ID = @response.headers.x-request-id
-
-GET {{base_url}}/users
-Authorization: Bearer {{ACCESS_TOKEN}}
+GET {{base_url}}/search
+  ?q=neovim
+  &limit=10
+  &offset=0
 ```
 
-- `@response.body.path` — JSON dot-path, supports arrays like `items[0].id`
-- `@response.headers.name` — case-insensitive header lookup
+The above is sent as `GET {{base_url}}/search?q=neovim&limit=10&offset=0`.
 
-### Custom cURL Flags
+---
 
-Pass arbitrary curl flags per-file (applies to all requests) or per-request. Flags are whitespace-split and appended to the generated curl command.
+## Directives
+
+Directives are `#` comment lines that change how a file behaves.
+
+### @env-file
+
+Load variables from a dotenv file. Place it before the first request; the path
+is resolved relative to the `.http` file.
+
+```sh
+# @env-file ./.env.local
+
+@base_url = https://api.example.com
+
+###
+
+GET {{base_url}}/users
+```
+
+The dotenv file supports `#` comments, blank lines, and `KEY=value`,
+`KEY="value"`, or `KEY='value'` forms.
+
+### @curl
+
+Pass arbitrary `curl` flags per-file (applies to all requests) or per-request.
+Flags are whitespace-split and appended to the generated `curl` command.
 
 **Per-file** — place before the first request:
 
@@ -215,11 +299,14 @@ GET https://localhost/api
 GET https://slow.example.com/data
 ```
 
-File-level flags are applied first, then per-request flags. On conflicts (e.g. two `--max-time` values), curl uses the last one, so per-request naturally wins.
+File-level flags are applied first, then per-request flags. On conflicts (e.g.
+two `--max-time` values), `curl` uses the last one, so per-request wins.
 
-### Cookie Jar
+### @cookie-jar Directive
 
-Enable a per-file cookie jar by adding `# @cookie-jar` before the first request. All requests in the same file then share cookies automatically via curl's native `--cookie` / `--cookie-jar` mechanism.
+Enable a per-file cookie jar by adding `# @cookie-jar` before the first
+request. All requests in the same file then share cookies automatically via
+`curl`'s native `--cookie` / `--cookie-jar` mechanism.
 
 ```sh
 # @cookie-jar
@@ -234,12 +321,37 @@ Content-Type: application/json
 GET {{base_url}}/dashboard
 ```
 
-- Cookies are stored in a temporary file and live only for the current Neovim session (deleted on `VimLeavePre`).
-- After any request completes, open the **Cookies** tab to inspect the current jar.
-- Press `D` inside the Cookies tab to clear the jar, or run `:Curlonaut ClearCookies`.
-- Press `e` inside the Cookies tab to edit the raw cookie jar file directly.
+See [Cookie Jar](#cookie-jar) for the full workflow.
 
-## Environment Variables
+---
+
+## Variables
+
+Use `{{VAR_NAME}}` anywhere in the URL, headers, body, or `curl` flags.
+
+### Inline Variables
+
+Declare variables directly in the `.http` file with `@name = value`. Declarations
+are file-scoped and may appear anywhere in the file. Values can be quoted, and
+can reference dynamic variables (which are resolved once, at declaration):
+
+```sh
+@base_url = https://api.example.com
+@token = "abc123"
+
+@my_uuid = {{$uuid}}
+
+###
+
+GET {{base_url}}/users
+Authorization: Bearer {{token}}
+```
+
+> **Tip:** If you need the *same* dynamic value in multiple places, assign it to
+> an inline variable first (as `my_uuid` above), then use `{{my_uuid}}` wherever
+> needed.
+
+### Environment Variables
 
 Variable resolution priority (highest first):
 
@@ -248,11 +360,12 @@ Variable resolution priority (highest first):
 3. Variables from the `.env` file specified via `# @env-file ./path`
 4. Shell environment variables
 
-Use `{{VAR_NAME}}` anywhere in the URL, headers, or body.
+Missing variables are replaced with an empty string and produce a warning.
 
-## Dynamic Variables
+### Dynamic Variables
 
-Built-in dynamic variables generate fresh values on every occurrence. Use the same syntax with a `$` prefix:
+Built-in dynamic variables generate a fresh value on every occurrence. Use the
+same syntax with a `$` prefix:
 
 ```sh
 POST {{base_url}}/events
@@ -285,9 +398,11 @@ Content-Type: application/json
 | `{{$date}}` | Today (`%Y-%m-%d`) | `2025-06-30` |
 | `{{$date fmt}}` | Formatted with `os.date` | `{{$date %H:%M}}` |
 | `{{$base64 value}}` | Base64-encode an env variable name or literal text (requires Neovim 0.10+) | `{{$base64 MY_CREDS}}` where `MY_CREDS = user:pass` → `dXNlcjpwYXNz` |
-| `{{$omit}}` | Omit this field from urlencoded/multipart body | — |
+| `{{$omit}}` | Omit this field from a urlencoded/multipart body or query string | — |
 
-Basic auth is the main use case — the first argument is looked up as an env variable first (inline `@var`, `.env` file, shell), falling back to treating it as literal text:
+Basic auth is the main use case for `$base64` — the first argument is looked up
+as an env variable first (inline `@var`, `.env` file, shell), falling back to
+treating it as literal text:
 
 ```sh
 GET {{base_url}}/secure
@@ -300,14 +415,119 @@ GET {{base_url}}/secure
 Authorization: Basic {{$base64 user:pass}}
 ```
 
-> **Tip:** If you need the *same* dynamic value in multiple places, assign it to an inline variable first:
-> ```sh
-> @my_uuid = {{$uuid}}
-> ```
-> Then use `{{my_uuid}}` wherever needed.
->
-> **Note on syntax highlighting:** `{{VAR}}` and `{{$VAR}}` inside JSON bodies without surrounding quotes may briefly break treesitter highlighting in the `.http` buffer. This is an upstream limitation of the `tree-sitter-http` parser (it injects the raw body text into the JSON parser, which sees templates as invalid syntax). The request still runs correctly — only the editor's syntax coloring is affected. Placing templates inside strings avoids the issue.
+`{{$omit}}` drops a whole `key=value` pair, so you can toggle optional fields:
+
+```sh
+GET {{base_url}}/users?active={{$omit}}&limit=10
+```
+
+---
+
+## Response Extractors
+
+After a request completes you can pull values from the response body or headers
+and save them as session-scoped variables for later requests. Place the
+extractor lines at the end of the request body:
+
+```sh
+POST {{base_url}}/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "secret"
+}
+
+@ACCESS_TOKEN = @response.body.token
+@REQUEST_ID = @response.headers.x-request-id
+
+###
+
+GET {{base_url}}/users
+Authorization: Bearer {{ACCESS_TOKEN}}
+```
+
+- `@response.body.path` — JSON dot-path, supports arrays like `items[0].id`.
+- `@response.headers.name` — case-insensitive header lookup.
+
+Extractor lines are stripped from the body before the request is sent. Values
+live for the current Neovim session and override other variable sources.
+
+---
+
+## Cookie Jar
+
+Enable the jar per file with the [`@cookie-jar` directive](#cookie-jar-directive).
+Once enabled, every request in that file reads and writes the same jar.
+
+```sh
+# @cookie-jar
+
+POST {{base_url}}/login
+Content-Type: application/json
+
+{ "username": "admin", "password": "secret" }
+
+###
+
+GET {{base_url}}/dashboard
+```
+
+- Cookies are stored in a temporary file and live only for the current Neovim
+  session (deleted on `VimLeavePre`).
+- After any request completes, open the **Cookies** tab to inspect the jar.
+- Press `D` inside the Cookies tab to clear the jar, or run
+  `:Curlonaut ClearCookies`.
+- Press `e` inside the Cookies tab to edit the raw cookie jar file directly, or
+  run `:Curlonaut EditCookies`.
+
+---
+
+## Response Formatting
+
+If a formatter is configured for the response's content type, the **Simple** and
+**Full** tabs pretty-print the body. Supported content types are JSON, HTML, and
+XML. Formatting is best-effort: if the formatter is missing or fails, the raw
+body is shown.
+
+```lua
+require('curlonaut').setup {
+  formatters = {
+    json = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/curlonaut_response.json' } },
+    html = { command = 'prettierd', args = { '--stdin-filepath', '/tmp/curlonaut_response.html' } },
+    xml  = { command = 'xmllint',   args = { '--format', '-' } },
+  },
+}
+```
+
+A formatter can also be given as a shorthand string when the command needs no
+extra arguments, e.g. `json = 'prettierd'`.
+
+---
 
 ## Health Check
 
-Run `:checkhealth curlonaut` to verify dependencies.
+Run `:checkhealth curlonaut` to verify that `curl` and the tree-sitter `http`
+parser are available.
+
+---
+
+## Limitations
+
+- **Syntax highlighting with templates.** `{{VAR}}` and `{{$VAR}}` inside JSON
+  bodies without surrounding quotes may briefly break treesitter highlighting in
+  the `.http` buffer. This is an upstream limitation of the `tree-sitter-http`
+  parser (it injects the raw body text into the JSON parser, which sees
+  templates as invalid syntax). The request still runs correctly — only the
+  editor's syntax coloring is affected. Placing templates inside strings avoids
+  the issue.
+- **JSON comments** are whole-line only and apply to JSON bodies only. Inline
+  comments are not supported.
+- **URL-encoded bodies** only strip formatting newlines before `&` and at the end
+  of the body.
+
+---
+
+## License
+
+See [LICENSE](LICENSE).
